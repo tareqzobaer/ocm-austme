@@ -8632,20 +8632,53 @@ async function embedSaveDoc(key){
   const c = activeCourse(); if(!c) return;
   const btn = document.getElementById("embedSaveBtn_"+key);
   if(btn){ btn.disabled = true; btn.textContent = "Saving…"; }
+  // html2canvas (used by html2pdf.js under the hood) frequently captures a
+  // blank/white canvas for content positioned off-screen (e.g. left:-9999px)
+  // — it needs the source element genuinely laid out within the viewport.
+  // Render on-screen instead, but under an opaque cover so nothing flashes
+  // visibly to the user.
+  const cover = document.createElement("div");
+  cover.style.cssText = "position:fixed;inset:0;z-index:99999;background:#fff;display:flex;align-items:center;justify-content:center;font-family:inherit;color:#6b7a8d;font-size:14px;";
+  cover.textContent = "Generating PDF…";
+  document.body.appendChild(cover);
+  // Deliberately NOT position:fixed/absolute: html2pdf's multi-page
+  // pagination silently breaks for a positioned source element (confirmed
+  // by testing — it crams all content onto a single page instead of
+  // slicing across pages, even though the element's measured height is
+  // identical either way). Normal static flow paginates correctly; the
+  // opaque cover above is what actually keeps this off-screen from the
+  // user, not positioning.
+  const host = document.createElement("div");
+  host.className = "report-sheet";
+  host.style.cssText = "width:900px;background:#fff;";
   try{
     const html = docsRegistry()[key][1](c);
-    const host = document.createElement("div");
-    host.className = "report-sheet";
-    host.style.cssText = "position:fixed;left:-9999px;top:0;width:900px;background:#fff;";
     host.innerHTML = html;
+    // html2canvas doesn't render form-control VALUES, only their empty
+    // boxes — these documents are almost entirely live .di input/textarea
+    // fields, so without this every generated PDF comes out visually
+    // blank. exportDocWord() above already solved exactly this problem for
+    // the Word export path; same fix applied here.
+    host.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
+    host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
+    host.querySelectorAll("select").forEach(sel2=>{ const s=document.createElement("span"); s.textContent=(sel2.selectedOptions[0]&&sel2.selectedOptions[0].textContent)||""; sel2.replaceWith(s); });
+    host.querySelectorAll(".no-print").forEach(n=>n.remove());
     document.body.appendChild(host);
-    const opt = { margin: 8, filename: key+".pdf", html2canvas:{ scale:2 }, jsPDF:{ unit:"mm", format:"a4", orientation: LANDSCAPE_DOCS.includes(key)? "landscape":"portrait" } };
+    // Let the browser actually lay out and paint the injected HTML before
+    // html2canvas captures it.
+    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const opt = { margin: 8, filename: key+".pdf", html2canvas:{ scale:2 }, jsPDF:{ unit:"mm", format:"a4", orientation: LANDSCAPE_DOCS.includes(key)? "landscape":"portrait" },
+      // Keep table rows (and whole small tables) from being sliced across
+      // a page boundary — 'css' honours any break-inside CSS already on
+      // the document, 'avoid' adds the same rule to these selectors
+      // without needing to touch every doc-generating function's HTML.
+      pagebreak: { mode: ["css","legacy"], avoid: ["tr","table"] } };
     const pdfBlob = await html2pdf().set(opt).from(host).outputPdf("blob");
-    host.remove();
     const base64 = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=rej; r.readAsDataURL(pdfBlob); });
     const filename = (c.code||"course")+"_"+(embedSemesterCode||c.semester||"")+"_"+key+".pdf";
     embedPostToParent({ type:"OCM_SAVE_DOCS", docs:[{ folderCode: EMBED_DOC_FOLDERS[key], filename, base64 }] });
   }catch(e){ console.warn(e); toast("Could not generate PDF: "+e.message); if(btn){ btn.disabled=false; btn.textContent="💾 Save to OBE Drive"; } }
+  finally{ host.remove(); cover.remove(); }
 }
 async function embedSaveAllDocs(){
   for(const key of DOC_KEY) await embedSaveDoc(key);
