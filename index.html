@@ -8643,6 +8643,40 @@ const EMBED_DOC_FOLDERS = { outline:"01", spec:"02", vetcep:"10", calc:"14", sur
    in Code.gs) doesn't have any of these problems, so this now just builds
    a clean standalone HTML document and lets the server convert it —
    nothing is rendered/painted client-side at all. */
+/* Embeds every <img>'s actual bytes as a data: URI, replacing whatever
+   src it had. Two reasons this has to happen explicitly rather than
+   trusting img.src to already be a resolved absolute URL: (1) host here
+   is a DETACHED element (never attached to the live document) — verified
+   by testing that a detached element's img.src property returns the raw,
+   UNRESOLVED attribute text, not a browser-resolved absolute URL, so a
+   relative path like AUST_LOGO ("aust_logo.svg") comes through unusable;
+   (2) even a correctly-resolved external https:// URL still depends on
+   the server-side PDF converter being able to fetch it over the network
+   mid-conversion, which is unverified — a self-contained data: URI needs
+   no such fetch at conversion time at all. */
+async function embedInlineImages(host){
+  const imgs = Array.from(host.querySelectorAll("img"));
+  await Promise.all(imgs.map(async img => {
+    const raw = img.getAttribute("src") || "";
+    if (!raw || raw.indexOf("data:") === 0) return; // already inline
+    try {
+      const absUrl = new URL(raw, document.baseURI).href;
+      const resp = await fetch(absUrl);
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      const blob = await resp.blob();
+      const dataUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = rej;
+        r.readAsDataURL(blob);
+      });
+      img.setAttribute("src", dataUrl);
+    } catch (e) {
+      console.warn("Could not inline image " + raw + ": " + e.message);
+      img.remove(); // an unresolved relative src would 404 server-side anyway
+    }
+  }));
+}
 /* The app's own CSS (:root variables, .report-sheet, table/heading
    styles, the AUST header treatment, etc.) is what makes window.print()
    look right — reuse it verbatim rather than a hand-rolled subset, which
@@ -8713,14 +8747,7 @@ async function embedSaveDoc(key){
     host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
     host.querySelectorAll("select").forEach(sel2=>{ const s=document.createElement("span"); s.textContent=(sel2.selectedOptions[0]&&sel2.selectedOptions[0].textContent)||""; sel2.replaceWith(s); });
     host.querySelectorAll(".no-print").forEach(n=>n.remove());
-    // img.src (the DOM property, not getAttribute) always returns the
-    // browser-RESOLVED absolute URL even when the markup used a relative
-    // one (e.g. the AUST logo, "aust_logo.svg") — writing that back as the
-    // attribute means the serialized HTML sent to the server carries a
-    // real, fetchable https:// URL instead of a relative path with no
-    // browsing context to resolve it against (which just silently fails
-    // to load server-side — this is why the logo went missing).
-    host.querySelectorAll("img").forEach(img=>{ img.setAttribute("src", img.src); });
+    await embedInlineImages(host);
     const html = embedBuildPdfHtml(key, host.innerHTML);
     const filename = (c.code||"course")+"_"+(embedSemesterCode||c.semester||"")+"_"+key+".pdf";
     embedPostToParent({ type:"OCM_SAVE_DOCS", docs:[{ folderCode: EMBED_DOC_FOLDERS[key], filename, html }] });
