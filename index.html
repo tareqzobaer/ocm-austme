@@ -8663,6 +8663,24 @@ function embedGetPageCss(){
        + "\nsection#tab-docs{display:block !important}"
        + "\n.report-sheet{box-shadow:none;padding:0}"
        + "\n.card{box-shadow:none}\n";
+  // Apps Script's server-side HTML→PDF conversion appears not to support
+  // CSS custom properties (var(--x)) — this app's entire stylesheet is
+  // built on them (:root{--primary:...} etc.), which is very plausibly
+  // why a saved PDF came out with no color/shadow/spacing at all despite
+  // sending the real CSS: every var(--primary) etc. silently fails to
+  // resolve. submitHandoutsLink()'s working PDF above never used a CSS
+  // variable, only plain hex values — resolve every var() to its actual
+  // computed value here before sending, rather than relying on the
+  // converter to do it.
+  const cs = getComputedStyle(document.documentElement);
+  let prev;
+  do { // nested var(--a, var(--b)) needs more than one pass to fully resolve
+    prev = css;
+    css = css.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*(?:\([^()]*\)[^()]*)*))?\)/g, (m, name, fallback) => {
+      const v = cs.getPropertyValue(name).trim();
+      return v || (fallback || "").trim() || m;
+    });
+  } while (css !== prev);
   return css;
 }
 function embedBuildPdfHtml(key, bodyHtml){
