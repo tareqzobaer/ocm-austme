@@ -5,10 +5,10 @@
   Upstream: https://github.com/mazhar17/ocm by Prof. Mazharul Islam (AUST
   MPE). This fork adds an "OBE File Manager embed bridge" (near the end of
   the main script block, just before "Init") plus three one-line hooks
-  inside scheduleFileSave(), saveNowShortcut() and updateFileChip(), the
-  html2pdf.js script tag, and the Documents-tab button additions — see that
-  section's own comment for exactly what it does and how to reapply it
-  when pulling a newer index.html from upstream (`git remote add upstream
+  inside scheduleFileSave(), saveNowShortcut() and updateFileChip(), and
+  the Documents-tab button additions — see that section's own comment for
+  exactly what it does and how to reapply it when pulling a newer
+  index.html from upstream (`git remote add upstream
   https://github.com/mazhar17/ocm.git`, then merge).
 
   Hosted on GitHub Pages so it can be embedded in a sandboxed iframe from
@@ -27,8 +27,6 @@
 <title>OBE Course Manager</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230F6B5C'/%3E%3Ccircle cx='32' cy='32' r='21' fill='none' stroke='%23E6F2F0' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='11' fill='%23C98A1B'/%3E%3Cpath d='M26 32l4.5 4.5L38.5 27.5' stroke='%23FFFFFF' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<!-- OBE File Manager embed patch: client-side PDF export for the "Save to OBE Drive" buttons (Documents tab). Only loaded/used when embedded — see the "OBE File Manager embed bridge" section near the end of the script. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 :root{
   --primary:#0f6b5c; --primary-dark:#0a4a40; --primary-light:#e6f2f0;
@@ -8546,7 +8544,8 @@ function toggleGuide(tab){
    posts {type:"OCM_SAVE_JSON", json} to the parent instead of writing to
    Google Drive or the File System Access API. The Documents tab's
    "💾 Save to OBE Drive" buttons post {type:"OCM_SAVE_DOCS", docs:[...]}
-   with client-side-rendered PDFs (html2pdf.js, loaded in <head>). */
+   with clean HTML per document — the server converts it to PDF
+   (Utilities.newBlob().getAs() in Code.gs), not a client-side screenshot. */
 const EMBED_QS       = new URLSearchParams(location.search);
 const IS_EMBED        = window.self !== window.top && EMBED_QS.get("embed") === "1";
 const embedCourseCode = EMBED_QS.get("course")   || "";
@@ -8636,66 +8635,47 @@ function embedLoadFromSemester(courseCode, semesterCode, semesterName){
    (see OBE_FOLDERS in Code.gs) — kept as one small table so it's easy to
    adjust independently of the folder-mapping rule living in the other repo. */
 const EMBED_DOC_FOLDERS = { outline:"01", spec:"02", vetcep:"10", calc:"14", survey:"13", report:"15" };
+/* html2canvas-based rasterization (previous approach) had a long tail of
+   hard-to-fix bugs: blank form-control values, broken multi-page
+   pagination, black regions on unpainted canvas areas, clipped wide
+   tables. Real HTML→PDF conversion (Utilities.newBlob().getAs() on the
+   server — the same reliable mechanism submitHandoutsLink() already uses
+   in Code.gs) doesn't have any of these problems, so this now just builds
+   a clean standalone HTML document and lets the server convert it —
+   nothing is rendered/painted client-side at all. */
+function embedBuildPdfHtml(key, bodyHtml){
+  const land = LANDSCAPE_DOCS.includes(key);
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(DOC_TITLES[key]||"Document")+'</title><style>'
+    + '@page{ size:'+(land? "A4 landscape":"A4 portrait")+'; margin:14mm; }'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#1c2b28;margin:0}'
+    + 'h1{font-size:16pt;text-align:center;color:#0a4a40;margin:0 0 10px}'
+    + 'h2{font-size:12.5pt;color:#0a4a40;margin:14px 0 6px;border-bottom:1.5px solid #0f6b5c;padding-bottom:2px}'
+    + 'table{border-collapse:collapse;width:100%;margin-top:4px}'
+    + 'th,td{border:1px solid #999;padding:4px 6px;font-size:9.5pt;vertical-align:top;text-align:left}'
+    + 'th{background:#e6f2f0}'
+    + 'p{margin:4px 0}'
+    + '</style></head><body>' + bodyHtml + '</body></html>';
+}
 async function embedSaveDoc(key){
   const c = activeCourse(); if(!c) return;
   const btn = document.getElementById("embedSaveBtn_"+key);
   if(btn){ btn.disabled = true; btn.textContent = "Saving…"; }
-  // html2canvas (used by html2pdf.js under the hood) frequently captures a
-  // blank/white canvas for content positioned off-screen (e.g. left:-9999px)
-  // — it needs the source element genuinely laid out within the viewport.
-  // Render on-screen instead, but under an opaque cover so nothing flashes
-  // visibly to the user.
-  const cover = document.createElement("div");
-  cover.style.cssText = "position:fixed;inset:0;z-index:99999;background:#fff;display:flex;align-items:center;justify-content:center;font-family:inherit;color:#6b7a8d;font-size:14px;";
-  cover.textContent = "Generating PDF…";
-  document.body.appendChild(cover);
-  // Deliberately NOT position:fixed/absolute: html2pdf's multi-page
-  // pagination silently breaks for a positioned source element (confirmed
-  // by testing — it crams all content onto a single page instead of
-  // slicing across pages, even though the element's measured height is
-  // identical either way). Normal static flow paginates correctly; the
-  // opaque cover above is what actually keeps this off-screen from the
-  // user, not positioning.
-  const host = document.createElement("div");
-  host.className = "report-sheet";
-  // Match the ~1160px the document actually renders at on-screen (main{}
-  // caps at 1200px, minus its own side padding) — 900px was too narrow
-  // for the wider tables (weekly routine, etc.), which overflowed and got
-  // clipped at the capture boundary instead of wrapping.
-  host.style.cssText = "width:1160px;background:#fff;";
   try{
-    const html = docsRegistry()[key][1](c);
-    host.innerHTML = html;
-    // html2canvas doesn't render form-control VALUES, only their empty
-    // boxes — these documents are almost entirely live .di input/textarea
-    // fields, so without this every generated PDF comes out visually
-    // blank. exportDocWord() above already solved exactly this problem for
-    // the Word export path; same fix applied here.
+    // A detached container — never appended to the page, so nothing
+    // flashes on screen. Form-control VALUES still need freezing into
+    // plain text/spans first (a converter reads markup, not live DOM input
+    // state) — exportDocWord() above already solved exactly this same
+    // problem for the Word export path.
+    const host = document.createElement("div");
+    host.innerHTML = docsRegistry()[key][1](c);
     host.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
     host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
     host.querySelectorAll("select").forEach(sel2=>{ const s=document.createElement("span"); s.textContent=(sel2.selectedOptions[0]&&sel2.selectedOptions[0].textContent)||""; sel2.replaceWith(s); });
     host.querySelectorAll(".no-print").forEach(n=>n.remove());
-    document.body.appendChild(host);
-    // Let the browser actually lay out and paint the injected HTML before
-    // html2canvas captures it.
-    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
-    const opt = { margin: 8, filename: key+".pdf",
-      // backgroundColor: html2canvas leaves any unpainted/transparent
-      // canvas region as-is, and jsPDF's default JPEG encoding then
-      // flattens transparency to solid black — explicit white avoids that
-      // (seen as a black block on generated pages).
-      html2canvas:{ scale:2, backgroundColor:"#ffffff" }, jsPDF:{ unit:"mm", format:"a4", orientation: LANDSCAPE_DOCS.includes(key)? "landscape":"portrait" },
-      // Keep table rows (and whole small tables) from being sliced across
-      // a page boundary — 'css' honours any break-inside CSS already on
-      // the document, 'avoid' adds the same rule to these selectors
-      // without needing to touch every doc-generating function's HTML.
-      pagebreak: { mode: ["css","legacy"], avoid: ["tr","table"] } };
-    const pdfBlob = await html2pdf().set(opt).from(host).outputPdf("blob");
-    const base64 = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=rej; r.readAsDataURL(pdfBlob); });
+    const html = embedBuildPdfHtml(key, host.innerHTML);
     const filename = (c.code||"course")+"_"+(embedSemesterCode||c.semester||"")+"_"+key+".pdf";
-    embedPostToParent({ type:"OCM_SAVE_DOCS", docs:[{ folderCode: EMBED_DOC_FOLDERS[key], filename, base64 }] });
-  }catch(e){ console.warn(e); toast("Could not generate PDF: "+e.message); if(btn){ btn.disabled=false; btn.textContent="💾 Save to OBE Drive"; } }
-  finally{ host.remove(); cover.remove(); }
+    embedPostToParent({ type:"OCM_SAVE_DOCS", docs:[{ folderCode: EMBED_DOC_FOLDERS[key], filename, html }] });
+  }catch(e){ console.warn(e); toast("Could not prepare document: "+e.message); if(btn){ btn.disabled=false; btn.textContent="💾 Save to OBE Drive"; } }
 }
 async function embedSaveAllDocs(){
   for(const key of DOC_KEY) await embedSaveDoc(key);
