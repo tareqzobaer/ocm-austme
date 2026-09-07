@@ -8732,6 +8732,20 @@ window.addEventListener("message", function(event){
     updateFileChip();
   } else if(msg.type === "OCM_SAVE_JSON_RESULT" || msg.type === "OCM_SAVE_DOCS_RESULT"){
     if(msg.type === "OCM_SAVE_JSON_RESULT") { embedDirty = !msg.success; updateFileChip(); }
+    if(msg.type === "OCM_SAVE_DOCS_RESULT"){
+      // embedSaveDoc() only resets its own button on a CLIENT-side failure
+      // (e.g. PDF generation throwing) — this is the other half, for the
+      // actual server-side save result, so the button doesn't sit stuck on
+      // "Saving…" after a real success/failure until the page is reloaded.
+      (msg.results||[]).forEach(r=>{
+        const key = Object.keys(EMBED_DOC_FOLDERS).find(k=>EMBED_DOC_FOLDERS[k]===r.folderCode);
+        const btn = key && document.getElementById("embedSaveBtn_"+key);
+        if(!btn) return;
+        btn.disabled = false;
+        btn.textContent = r.success? "✓ Saved" : "💾 Save to OBE Drive";
+        if(r.success) setTimeout(()=>{ if(document.body.contains(btn)) btn.textContent="💾 Save to OBE Drive"; }, 2000);
+      });
+    }
     toast(msg.success? "Saved to OBE Drive" : "Save to OBE Drive failed");
   } else if(msg.type === "OCM_FETCH_PREV_RESULT"){
     const ref = embedRecentSemesters.find(r=>r.semesterCode===msg.semesterCode);
