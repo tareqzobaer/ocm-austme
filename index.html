@@ -1,4 +1,25 @@
 <!DOCTYPE html>
+<!--
+  OBE Course Manager (OCM) — fork patched for the AUST ME OBE File Manager.
+
+  Upstream: https://github.com/mazhar17/ocm by Prof. Mazharul Islam (AUST
+  MPE). This fork adds an "OBE File Manager embed bridge" (near the end of
+  the main script block, just before "Init") plus three one-line hooks
+  inside scheduleFileSave(), saveNowShortcut() and updateFileChip(), the
+  html2pdf.js script tag, and the Documents-tab button additions — see that
+  section's own comment for exactly what it does and how to reapply it
+  when pulling a newer index.html from upstream (`git remote add upstream
+  https://github.com/mazhar17/ocm.git`, then merge).
+
+  Hosted on GitHub Pages so it can be embedded in a sandboxed iframe from
+  the OBE File Manager's course dashboard (ME courses only — see ocm.html
+  in that project). It never talks to Google Drive itself when embedded;
+  all Drive I/O happens via the parent page's Apps Script backend, which
+  already owns every Drive write as the coordinator. This page and its
+  code are the only things published here — no course or student data
+  ever passes through GitHub; that stays entirely within the AUST Google
+  Workspace domain.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -6,6 +27,8 @@
 <title>OBE Course Manager</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230F6B5C'/%3E%3Ccircle cx='32' cy='32' r='21' fill='none' stroke='%23E6F2F0' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='11' fill='%23C98A1B'/%3E%3Cpath d='M26 32l4.5 4.5L38.5 27.5' stroke='%23FFFFFF' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- OBE File Manager embed patch: client-side PDF export for the "Save to OBE Drive" buttons (Documents tab). Only loaded/used when embedded — see the "OBE File Manager embed bridge" section near the end of the script. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 :root{
   --primary:#0f6b5c; --primary-dark:#0a4a40; --primary-light:#e6f2f0;
@@ -893,6 +916,7 @@ async function writeFileNow(){
   fileDirty = false; updateFileChip();
 }
 function scheduleFileSave(){
+  if(IS_EMBED){ scheduleEmbedSave(); return; }
   if(driveFile){ scheduleDriveSave(); return; }
   if(!fileHandle || !filePermOk) return;
   fileDirty = true; updateFileChip();
@@ -1158,6 +1182,11 @@ function unlinkDrive(){
 function updateFileChip(){
   const el = document.getElementById("fileChip");
   if(!el) return;
+  if(IS_EMBED){
+    const st = embedDirty? "saving…" : "saved";
+    el.innerHTML = `<span class="file-wrap"><button class="file-chip-btn" style="${embedDirty?"border-color:#E3A72F;color:#F6DCAB":""}" title="Changes save automatically to the OBE File Manager's Google Drive">📁 OBE Drive · <span class="file-status">${st}</span></button></span>`;
+    return;
+  }
   const menu = items => window._fileMenuOpen? `<div class="file-menu">${items}</div>` : "";
   const mi = (label, action, cls) => `<button class="${cls||""}" onclick="window._fileMenuOpen=false;${action}">${label}</button>`;
   const start = mi("⇄ Start from a Version 2.2 Course Outline…","startFromV22()","sep");
@@ -1235,6 +1264,7 @@ function saveNowShortcut(){
   const ae = document.activeElement;
   if(ae && ae.blur && ["INPUT","TEXTAREA","SELECT"].includes(ae.tagName)) ae.blur(); // commit the field being edited
   save();
+  if(IS_EMBED){ clearTimeout(embedTimer); embedWriteNow(); return; }
   if(driveFile){
     if(driveConflict){ toast("The Drive file has a conflict — choose Keep mine or Load the Drive version in the File menu"); return; }
     if(!driveTok){ reconnectDrive(); return; }
@@ -6716,6 +6746,8 @@ function renderDocs(){
   <div class="no-print btn-row" style="margin:0 0 14px">
     <button class="btn" onclick="window.print()">🖨 Print / Save as PDF${LANDSCAPE_DOCS.includes(sel)? " (landscape)":""}</button>
     <button class="btn secondary" onclick="exportDocWord()" title="Saves this document as a Word-compatible .doc — opens in Word or LibreOffice with tables and layout intact, fully editable. From Word you can Save As .rtf if that format is required.">⬇ Export for Word (.doc)</button>
+    ${IS_EMBED && EMBED_DOC_FOLDERS[sel]? `<button class="btn secondary" id="embedSaveBtn_${sel}" onclick="embedSaveDoc('${sel}')">💾 Save to OBE Drive</button>` : ""}
+    ${IS_EMBED && DOC_KEY.includes(sel)? `<button class="btn secondary" onclick="embedSaveAllDocs()">💾 Save all 6 key documents</button>` : ""}
     <span class="pill-note">Dotted fields are editable and save automatically. Fields already entered elsewhere in the app are filled in for you. The documents follow the AUST OBE templates (BAETE / Washington Accord framework).</span>
   </div>
   <div class="report-sheet">${docs[sel][1](c)}</div>`;
@@ -8473,18 +8505,150 @@ function toggleGuide(tab){
   });
 })();
 
+/* ============ OBE File Manager embed bridge ============
+   When launched inside the OBE File Manager's "Launch OCM" iframe (ME
+   courses only — see ocm.html in that project), this page represents
+   exactly one course and never talks to Google Drive itself: the parent
+   page owns all Drive I/O through its own Apps Script backend, which
+   already writes every file as the coordinator. Standalone use of this
+   page (opened directly, outside that iframe) is completely unaffected —
+   everything here is gated behind IS_EMBED, and the three one-line checks
+   added to scheduleFileSave(), saveNowShortcut() and updateFileChip()
+   above are the only edits made to existing functions.
+
+   Protocol (window.postMessage): the parent creates the iframe pointed at
+   this file with ?embed=1&course=<code>&semester=<semCode>&title=<name>.
+   On load this page sends {type:"OCM_READY"}. The parent replies with
+   {type:"OCM_INIT", course, semester, title, existingJson} — existingJson
+   is the previously-saved course JSON (or null for a first-time launch).
+   From then on, every edit's normal autosave (save() → scheduleFileSave())
+   posts {type:"OCM_SAVE_JSON", json} to the parent instead of writing to
+   Google Drive or the File System Access API. The Documents tab's
+   "💾 Save to OBE Drive" buttons post {type:"OCM_SAVE_DOCS", docs:[...]}
+   with client-side-rendered PDFs (html2pdf.js, loaded in <head>). */
+const EMBED_QS       = new URLSearchParams(location.search);
+const IS_EMBED        = window.self !== window.top && EMBED_QS.get("embed") === "1";
+const embedCourseCode = EMBED_QS.get("course")   || "";
+const embedSemesterCode = EMBED_QS.get("semester") || "";
+const embedTitle      = EMBED_QS.get("title")    || "";
+let embedDirty = false, embedTimer = null, embedReady = false;
+
+function embedFreshCourse(){
+  return ensureAust({
+    id: embedCourseCode + "_" + embedSemesterCode, code: embedCourseCode, title: embedTitle, credit: "",
+    semester: embedSemesterCode, program: "", instructor: "", section: "",
+    cos: [], assessments: [], students: [], marks: {}, cfg: defaultCfg(),
+  });
+}
+function scheduleEmbedSave(){
+  if(!embedReady) return;
+  embedDirty = true; updateFileChip();
+  clearTimeout(embedTimer);
+  embedTimer = setTimeout(embedWriteNow, 1500);
+}
+/* Apps Script wraps framed HtmlService content in its own extra sandbox
+   iframe, so window.parent from in here may be that Google-controlled
+   wrapper rather than the OBE File Manager's actual ocm.html — confirmed
+   by testing (standalone ?page=ocm loaded fine, embedded stayed stuck on
+   "Loading OCM…" because the message never reached ocm.html's listener).
+   Post to every ancestor frame up to window.top instead of assuming
+   exactly one hop; harmless no-ops wherever nothing is listening. */
+function embedPostToParent(msg){
+  let w = window;
+  for(let i=0; i<4 && w !== window.top; i++){
+    w = w.parent;
+    try{ w.postMessage(msg, "*"); }catch(e){}
+  }
+}
+function embedWriteNow(){
+  const c = activeCourse(); if(!c) return;
+  embedPostToParent({ type:"OCM_SAVE_JSON", json: JSON.stringify(c) });
+}
+function embedInit(){
+  document.title = "OBE Course Manager" + (embedCourseCode? " — " + embedCourseCode : "");
+  embedPostToParent({ type:"OCM_READY" });
+}
+/* Maps the six "Key Documents" to the OBE File Manager's numbered folders
+   (see OBE_FOLDERS in Code.gs) — kept as one small table so it's easy to
+   adjust independently of the folder-mapping rule living in the other repo. */
+const EMBED_DOC_FOLDERS = { outline:"01", spec:"02", vetcep:"10", calc:"14", survey:"13", report:"15" };
+async function embedSaveDoc(key){
+  const c = activeCourse(); if(!c) return;
+  const btn = document.getElementById("embedSaveBtn_"+key);
+  if(btn){ btn.disabled = true; btn.textContent = "Saving…"; }
+  try{
+    const html = docsRegistry()[key][1](c);
+    const host = document.createElement("div");
+    host.className = "report-sheet";
+    host.style.cssText = "position:fixed;left:-9999px;top:0;width:900px;background:#fff;";
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    const opt = { margin: 8, filename: key+".pdf", html2canvas:{ scale:2 }, jsPDF:{ unit:"mm", format:"a4", orientation: LANDSCAPE_DOCS.includes(key)? "landscape":"portrait" } };
+    const pdfBlob = await html2pdf().set(opt).from(host).outputPdf("blob");
+    host.remove();
+    const base64 = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=rej; r.readAsDataURL(pdfBlob); });
+    const filename = (c.code||"course")+"_"+(embedSemesterCode||c.semester||"")+"_"+key+".pdf";
+    embedPostToParent({ type:"OCM_SAVE_DOCS", docs:[{ folderCode: EMBED_DOC_FOLDERS[key], filename, base64 }] });
+  }catch(e){ console.warn(e); toast("Could not generate PDF: "+e.message); if(btn){ btn.disabled=false; btn.textContent="💾 Save to OBE Drive"; } }
+}
+async function embedSaveAllDocs(){
+  for(const key of DOC_KEY) await embedSaveDoc(key);
+}
+/* renderDocs() builds this same object inline (it isn't currently a
+   standalone function) — duplicated here rather than refactoring that
+   function, to keep this patch a pure addition with no edits inside
+   renderDocs() itself. Keep the two lists in sync if upstream adds a doc. */
+function docsRegistry(){
+  return { outline:["Course Outline",docOutline], spec:["Course Specifications",docSpec],
+           vetcep:["Final Exam Vetting Form",docVetCEP], calc:["Direct CO-PO Calculations",docCalc],
+           survey:["Course Evaluation Survey",docSurvey], report:["Course Report",docReport],
+           cqi:["CQI Report",docCQI], rubrics:["Assessment Rubrics",docRubrics], sar221:["SAR Table 2.2.1",docSAR221],
+           comod:["CO Modification Request Form",docCOMod], cemod:["CE Moderation Form",docCEMod], sdg:["SDG Integration Map",docSDG] };
+}
+/* Accepted by IS_EMBED plus a recognized "OCM_" message type, rather than
+   exact frame identity (event.source) — the wrapper iframe above means the
+   sender may be one or more frames further up than window.parent. The real
+   access control lives server-side in Code.gs (requireCourseAccess_()). */
+window.addEventListener("message", function(event){
+  if(!IS_EMBED) return;
+  const msg = event.data || {};
+  if(typeof msg.type !== "string" || msg.type.indexOf("OCM_") !== 0) return;
+  if(msg.type === "OCM_INIT"){
+    let course = null;
+    if(msg.existingJson){ try{ course = JSON.parse(msg.existingJson); }catch(e){ course = null; } }
+    course = ensureAust(course || embedFreshCourse());
+    state.courses = [course];
+    state.activeCourseId = course.id;
+    embedReady = true; embedDirty = false;
+    renderCourseSelect();
+    showTab("course");
+    updateFileChip();
+  } else if(msg.type === "OCM_SAVE_JSON_RESULT" || msg.type === "OCM_SAVE_DOCS_RESULT"){
+    if(msg.type === "OCM_SAVE_JSON_RESULT") { embedDirty = !msg.success; updateFileChip(); }
+    toast(msg.success? "Saved to OBE Drive" : "Save to OBE Drive failed");
+  }
+});
+
 /* ============ Init ============ */
 load();
-if(state.courses.length && !activeCourse()) state.activeCourseId = state.courses[0].id;
-renderCourseSelect();
-showTab("dashboard");
-try{ const df=JSON.parse(localStorage.getItem(DRIVE_KEY)||"null"); if(df && df.id){ driveFile=df; driveTok=null; } }catch(e){}
-if(FS_OK){
-  idbGet("main").then(h=>{
-    if(h){ fileHandle = h; filePermOk = false; updateFileChip(); }
-    else updateFileChip();
-  }).catch(()=>updateFileChip());
-} else updateFileChip();
+if(IS_EMBED){
+  // Never show another course's locally-cached data, even briefly, inside the embed.
+  state.courses = []; state.activeCourseId = null;
+  renderCourseSelect();
+  updateFileChip();
+  embedInit();
+} else {
+  if(state.courses.length && !activeCourse()) state.activeCourseId = state.courses[0].id;
+  renderCourseSelect();
+  showTab("dashboard");
+  try{ const df=JSON.parse(localStorage.getItem(DRIVE_KEY)||"null"); if(df && df.id){ driveFile=df; driveTok=null; } }catch(e){}
+  if(FS_OK){
+    idbGet("main").then(h=>{
+      if(h){ fileHandle = h; filePermOk = false; updateFileChip(); }
+      else updateFileChip();
+    }).catch(()=>updateFileChip());
+  } else updateFileChip();
+}
 document.addEventListener("click", ()=>{
   if(window._fileMenuOpen){ window._fileMenuOpen = false; updateFileChip(); }
 });
