@@ -8643,18 +8643,34 @@ const EMBED_DOC_FOLDERS = { outline:"01", spec:"02", vetcep:"10", calc:"14", sur
    in Code.gs) doesn't have any of these problems, so this now just builds
    a clean standalone HTML document and lets the server convert it —
    nothing is rendered/painted client-side at all. */
+/* The app's own CSS (:root variables, .report-sheet, table/heading
+   styles, the AUST header treatment, etc.) is what makes window.print()
+   look right — reuse it verbatim rather than a hand-rolled subset, which
+   is what dropped the header styling and most of the visual treatment the
+   first time around. The real @media print block (search this file for
+   "@media print{" near the top) is written for an interactive browser
+   print, gated behind a media query the server-side converter may not
+   evaluate at all — so its rules are reapplied here unconditionally
+   (appended last, so they win in the cascade regardless of media-query
+   support) instead of relying on @media print being honoured. */
+function embedGetPageCss(){
+  let css = "";
+  document.querySelectorAll("style").forEach(s => { css += s.textContent + "\n"; });
+  css += "\n.app-header,.tabs,.no-print,footer,.toast,.doc-nav{display:none !important}"
+       + "\nbody{background:#fff}"
+       + "\nmain{max-width:100%;padding:0}"
+       + "\nsection.tab{display:none !important}"
+       + "\nsection#tab-docs{display:block !important}"
+       + "\n.report-sheet{box-shadow:none;padding:0}"
+       + "\n.card{box-shadow:none}\n";
+  return css;
+}
 function embedBuildPdfHtml(key, bodyHtml){
   const land = LANDSCAPE_DOCS.includes(key);
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(DOC_TITLES[key]||"Document")+'</title><style>'
-    + '@page{ size:'+(land? "A4 landscape":"A4 portrait")+'; margin:14mm; }'
-    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#1c2b28;margin:0}'
-    + 'h1{font-size:16pt;text-align:center;color:#0a4a40;margin:0 0 10px}'
-    + 'h2{font-size:12.5pt;color:#0a4a40;margin:14px 0 6px;border-bottom:1.5px solid #0f6b5c;padding-bottom:2px}'
-    + 'table{border-collapse:collapse;width:100%;margin-top:4px}'
-    + 'th,td{border:1px solid #999;padding:4px 6px;font-size:9.5pt;vertical-align:top;text-align:left}'
-    + 'th{background:#e6f2f0}'
-    + 'p{margin:4px 0}'
-    + '</style></head><body>' + bodyHtml + '</body></html>';
+    + '@page{ size:'+(land? "A4 landscape":"A4 portrait")+'; margin:10mm; }\n'
+    + embedGetPageCss()
+    + '</style></head><body><div id="tab-docs" class="tab active"><div class="report-sheet">' + bodyHtml + '</div></div></body></html>';
 }
 async function embedSaveDoc(key){
   const c = activeCourse(); if(!c) return;
