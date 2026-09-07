@@ -1184,7 +1184,14 @@ function updateFileChip(){
   if(!el) return;
   if(IS_EMBED){
     const st = embedDirty? "saving…" : "saved";
-    el.innerHTML = `<span class="file-wrap"><button class="file-chip-btn" style="${embedDirty?"border-color:#E3A72F;color:#F6DCAB":""}" title="Changes save automatically to the OBE File Manager's Google Drive">📁 OBE Drive · <span class="file-status">${st}</span></button></span>`;
+    const embedMenu = window._fileMenuOpen? `<div class="file-menu">
+        <button onclick="window._fileMenuOpen=false;saveNowShortcut()">💾 Save Now</button>
+        <button onclick="window._fileMenuOpen=false;exportCourse()">⬇ Export this course (JSON)</button>
+        <label class="mi-file">⬆ Load JSON into this course…<input type="file" accept=".json" style="display:none" onchange="window._fileMenuOpen=false;embedLoadJsonFile(this)"></label>
+      </div>` : "";
+    el.innerHTML = `<span class="file-wrap">
+      <button class="file-chip-btn" style="${embedDirty?"border-color:#E3A72F;color:#F6DCAB":""}" title="Changes save automatically to the OBE File Manager's Google Drive — click for more options" onclick="toggleFileMenu(event)">📁 OBE Drive · <span class="file-status">${st}</span> ▾</button>
+      ${embedMenu}</span>`;
     return;
   }
   const menu = items => window._fileMenuOpen? `<div class="file-menu">${items}</div>` : "";
@@ -8568,6 +8575,36 @@ function embedInit(){
   document.title = "OBE Course Manager" + (embedCourseCode? " — " + embedCourseCode : "");
   embedPostToParent({ type:"OCM_READY" });
 }
+/* Scoped version of the stock importJSON(): that one can add OTHER
+   courses to state.courses and let the user switch the course selector to
+   one of them — fine standalone, but in embed mode the parent always
+   saves under the ORIGINAL course/semester from the launch URL
+   regardless of which course is active here, so switching away would
+   silently save the wrong course's data under the right course's file.
+   This instead replaces ONLY the single embedded course in place, and
+   pins code/semester back to the launch context no matter what the
+   loaded file says, so the two can never drift apart. */
+function embedLoadJsonFile(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      const incoming = Array.isArray(data.courses) ? data.courses[0] : (data.id && data.cos ? data : null);
+      if(!incoming) throw new Error("Unrecognized format — expected an OBE Course Manager course file");
+      if(!confirm(`Replace this course's data with "${file.name}"?\n\nIts course code/semester will be kept as ${embedCourseCode} / ${embedSemesterCode} regardless of what the file contains. This cannot be undone.`)) return;
+      const id = (activeCourse()||{}).id || embedCourseId();
+      const merged = ensureAust(Object.assign({}, incoming, { id, code: embedCourseCode, semester: embedSemesterCode }));
+      state.courses = [merged];
+      state.activeCourseId = merged.id;
+      save(); refresh();
+      toast("Loaded "+file.name);
+    }catch(err){ alert("Could not load file: "+err.message); }
+  };
+  reader.readAsText(file);
+  input.value = "";
+}
+function embedCourseId(){ return embedCourseCode + "_" + embedSemesterCode; }
 /* Maps the six "Key Documents" to the OBE File Manager's numbered folders
    (see OBE_FOLDERS in Code.gs) — kept as one small table so it's easy to
    adjust independently of the folder-mapping rule living in the other repo. */
