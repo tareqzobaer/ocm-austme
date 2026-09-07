@@ -8662,7 +8662,14 @@ function embedGetPageCss(){
        + "\nsection.tab{display:none !important}"
        + "\nsection#tab-docs{display:block !important}"
        + "\n.report-sheet{box-shadow:none;padding:0}"
-       + "\n.card{box-shadow:none}\n";
+       + "\n.card{box-shadow:none}"
+       // Print-style rendering (which server-side HTML→PDF conversion
+       // effectively is) strips background-color/background-image by
+       // default to save ink, unless told not to — this codebase already
+       // knows about exactly this property for a different component
+       // (search "print-color-adjust" elsewhere in this file); apply it
+       // universally here so table header/label shading etc. survive.
+       + "\n*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important}\n";
   // Apps Script's server-side HTML→PDF conversion appears not to support
   // CSS custom properties (var(--x)) — this app's entire stylesheet is
   // built on them (:root{--primary:...} etc.), which is very plausibly
@@ -8706,6 +8713,14 @@ async function embedSaveDoc(key){
     host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
     host.querySelectorAll("select").forEach(sel2=>{ const s=document.createElement("span"); s.textContent=(sel2.selectedOptions[0]&&sel2.selectedOptions[0].textContent)||""; sel2.replaceWith(s); });
     host.querySelectorAll(".no-print").forEach(n=>n.remove());
+    // img.src (the DOM property, not getAttribute) always returns the
+    // browser-RESOLVED absolute URL even when the markup used a relative
+    // one (e.g. the AUST logo, "aust_logo.svg") — writing that back as the
+    // attribute means the serialized HTML sent to the server carries a
+    // real, fetchable https:// URL instead of a relative path with no
+    // browsing context to resolve it against (which just silently fails
+    // to load server-side — this is why the logo went missing).
+    host.querySelectorAll("img").forEach(img=>{ img.setAttribute("src", img.src); });
     const html = embedBuildPdfHtml(key, host.innerHTML);
     const filename = (c.code||"course")+"_"+(embedSemesterCode||c.semester||"")+"_"+key+".pdf";
     embedPostToParent({ type:"OCM_SAVE_DOCS", docs:[{ folderCode: EMBED_DOC_FOLDERS[key], filename, html }] });
