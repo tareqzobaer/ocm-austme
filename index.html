@@ -1184,10 +1184,14 @@ function updateFileChip(){
   if(!el) return;
   if(IS_EMBED){
     const st = embedDirty? "saving…" : "saved";
+    const recentItems = embedRecentSemesters.map(r=>
+      `<button onclick="window._fileMenuOpen=false;embedLoadFromSemester('${esc(r.courseCode)}','${esc(r.semesterCode)}','${esc(r.semesterName||r.semesterCode)}')">⬆ Load from ${esc(r.semesterName||r.semesterCode)}…</button>`
+    ).join("");
     const embedMenu = window._fileMenuOpen? `<div class="file-menu">
         <button onclick="window._fileMenuOpen=false;saveNowShortcut()">💾 Save Now</button>
         <button onclick="window._fileMenuOpen=false;exportCourse()">⬇ Export this course (JSON)</button>
         <label class="mi-file">⬆ Load JSON into this course…<input type="file" accept=".json" style="display:none" onchange="window._fileMenuOpen=false;embedLoadJsonFile(this)"></label>
+        ${recentItems}
       </div>` : "";
     el.innerHTML = `<span class="file-wrap">
       <button class="file-chip-btn" style="${embedDirty?"border-color:#E3A72F;color:#F6DCAB":""}" title="Changes save automatically to the OBE File Manager's Google Drive — click for more options" onclick="toggleFileMenu(event)">📁 OBE Drive · <span class="file-status">${st}</span> ▾</button>
@@ -8548,7 +8552,7 @@ const IS_EMBED        = window.self !== window.top && EMBED_QS.get("embed") === 
 const embedCourseCode = EMBED_QS.get("course")   || "";
 const embedSemesterCode = EMBED_QS.get("semester") || "";
 const embedTitle      = EMBED_QS.get("title")    || "";
-let embedDirty = false, embedTimer = null, embedReady = false;
+let embedDirty = false, embedTimer = null, embedReady = false, embedRecentSemesters = [];
 
 function embedFreshCourse(){
   return ensureAust({
@@ -8624,6 +8628,10 @@ function embedLoadJsonFile(input){
   input.value = "";
 }
 function embedCourseId(){ return embedCourseCode + "_" + embedSemesterCode; }
+function embedLoadFromSemester(courseCode, semesterCode, semesterName){
+  if(!confirm(`Replace this course's data with your ${semesterName} offering?\n\nIts course code/semester will be kept as ${embedCourseCode} / ${embedSemesterCode} regardless. This cannot be undone.`)) return;
+  embedPostToParent({ type:"OCM_FETCH_PREV", courseCode, semesterCode });
+}
 /* Maps the six "Key Documents" to the OBE File Manager's numbered folders
    (see OBE_FOLDERS in Code.gs) — kept as one small table so it's easy to
    adjust independently of the folder-mapping rule living in the other repo. */
@@ -8709,12 +8717,26 @@ window.addEventListener("message", function(event){
     state.courses = [course];
     state.activeCourseId = course.id;
     embedReady = true; embedDirty = false;
+    embedRecentSemesters = msg.recentSemesters || [];
     renderCourseSelect();
     showTab("course");
     updateFileChip();
   } else if(msg.type === "OCM_SAVE_JSON_RESULT" || msg.type === "OCM_SAVE_DOCS_RESULT"){
     if(msg.type === "OCM_SAVE_JSON_RESULT") { embedDirty = !msg.success; updateFileChip(); }
     toast(msg.success? "Saved to OBE Drive" : "Save to OBE Drive failed");
+  } else if(msg.type === "OCM_FETCH_PREV_RESULT"){
+    const ref = embedRecentSemesters.find(r=>r.semesterCode===msg.semesterCode);
+    const label = (ref && ref.semesterName) || msg.semesterCode;
+    if(!msg.json){ toast("Could not load "+label+" — nothing found"); return; }
+    let incoming = null;
+    try{ incoming = JSON.parse(msg.json); }catch(e){}
+    if(!incoming){ toast("Could not load "+label+" — unreadable data"); return; }
+    const id = (activeCourse()||{}).id || embedCourseId();
+    const merged = ensureAust(Object.assign({}, incoming, { id, code: embedCourseCode, semester: embedSemesterCode }));
+    state.courses = [merged];
+    state.activeCourseId = merged.id;
+    save(); refresh();
+    toast("Loaded "+label);
   }
 });
 
