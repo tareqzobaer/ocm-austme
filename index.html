@@ -8658,7 +8658,11 @@ async function embedSaveDoc(key){
   // user, not positioning.
   const host = document.createElement("div");
   host.className = "report-sheet";
-  host.style.cssText = "width:900px;background:#fff;";
+  // Match the ~1160px the document actually renders at on-screen (main{}
+  // caps at 1200px, minus its own side padding) — 900px was too narrow
+  // for the wider tables (weekly routine, etc.), which overflowed and got
+  // clipped at the capture boundary instead of wrapping.
+  host.style.cssText = "width:1160px;background:#fff;";
   try{
     const html = docsRegistry()[key][1](c);
     host.innerHTML = html;
@@ -8675,7 +8679,12 @@ async function embedSaveDoc(key){
     // Let the browser actually lay out and paint the injected HTML before
     // html2canvas captures it.
     await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
-    const opt = { margin: 8, filename: key+".pdf", html2canvas:{ scale:2 }, jsPDF:{ unit:"mm", format:"a4", orientation: LANDSCAPE_DOCS.includes(key)? "landscape":"portrait" },
+    const opt = { margin: 8, filename: key+".pdf",
+      // backgroundColor: html2canvas leaves any unpainted/transparent
+      // canvas region as-is, and jsPDF's default JPEG encoding then
+      // flattens transparency to solid black — explicit white avoids that
+      // (seen as a black block on generated pages).
+      html2canvas:{ scale:2, backgroundColor:"#ffffff" }, jsPDF:{ unit:"mm", format:"a4", orientation: LANDSCAPE_DOCS.includes(key)? "landscape":"portrait" },
       // Keep table rows (and whole small tables) from being sliced across
       // a page boundary — 'css' honours any break-inside CSS already on
       // the document, 'avoid' adds the same rule to these selectors
