@@ -259,6 +259,6 @@
   <!-- ======== FOOTER ======== -->
   <rect x="640" y="1015" width="640" height="40" rx="20" fill="#E6F2F0"/>
   <rect x="752" y="1023" width="70" height="24" rx="6" fill="#0A4A40"/>
-  <text x="787" y="1040" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">v2.37</text>
+  <text x="787" y="1040" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">v2.38</text>
   <text x="836" y="1041" font-size="17" fill="#0A4A40">·  mazhar17.github.io/obe-course-manager</text>
 </svg>

@@ -93,6 +93,12 @@ table.tbl tr:nth-child(even) td{background:#fafcfd}
 .report-sheet .rpt-head{text-align:center;margin-bottom:6px;color:var(--muted);font-size:13px}
 .report-sheet table{margin-top:6px}
 footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;text-align:center;padding:16px}
+.ocm-modal-back{position:fixed;inset:0;background:rgba(16,36,52,.45);z-index:120;display:flex;align-items:center;justify-content:center;padding:16px}
+.ocm-modal{background:var(--card);border-radius:var(--radius);box-shadow:0 12px 40px rgba(0,0,0,.35);max-width:520px;width:100%;padding:20px 22px}
+.ocm-modal h3{margin:0 0 6px;font-size:17px;color:var(--primary-dark)}
+.ocm-modal p{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.5}
+.ocm-modal input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit}
+.ocm-modal .btn-row{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--primary-dark);color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;box-shadow:var(--shadow);opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
 .toast.show{opacity:1}
 /* CQI Section: full-width editable fields (the di/dta helpers are print-styled only inside .report-sheet) */
@@ -229,7 +235,7 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
     </svg>
     <div>
       <h1>OBE Course Manager</h1>
-      <span class="sub">Teaching, Learning &amp; Assessment — Outcome-Based Education · <span id="verChip">v2.37</span></span>
+      <span class="sub">Teaching, Learning &amp; Assessment — Outcome-Based Education · <span id="verChip">v2.38</span></span>
     </div>
   </div>
   <div class="header-right">
@@ -271,14 +277,14 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
   <section class="tab" id="tab-about"></section>
 </main>
 
-<footer>OBE Course Manager <b>v2.37</b> (<a href="https://mazhar17.github.io/ocm/" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/ocm</a>) · runs fully in your browser · data stays on your device (or your own Google Drive, if you choose) · export backups regularly from <b>Data &amp; Backup</b>
+<footer>OBE Course Manager <b>v2.38</b> (<a href="https://mazhar17.github.io/ocm/" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/ocm</a>) · runs fully in your browser · data stays on your device (or your own Google Drive, if you choose) · export backups regularly from <b>Data &amp; Backup</b>
 <br>© 2026 Prof. Mazharul Islam (<a href="https://mazhar17.github.io/MI" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/MI</a>) · Distributed under the <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:var(--primary)">Creative Commons Attribution (CC BY) 4.0 International License</a></footer>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
 /* ============ Constants ============ */
-const APP_VERSION = "v2.37";
+const APP_VERSION = "v2.38";
 const APP_RELEASE = "July 13, 2026";
 const PO_INFO = {
   1:"Engineering Knowledge", 2:"Problem Analysis", 3:"Design/Development of Solutions",
@@ -952,15 +958,23 @@ const GD = {
       callback:r=>{ if(r && r.access_token){ driveTok=r.access_token; driveTokExp=Date.now()+((+r.expires_in||3600)-60)*1000; res(driveTok); } else rej(new Error((r&&r.error)||"Sign-in did not complete")); },
       error_callback:e=>rej(new Error((e&&e.type)||"Sign-in cancelled")) });
     tc.requestAccessToken({ prompt:"" }); }); },
+  /* The picker does not close itself: it must be hidden and disposed on EVERY path, or the
+     overlay stays on screen and the app looks frozen. v2.37 forgot this. */
   pick(mode){ return new Promise(res=>{
-    const c=gdriveCfg(); let view;
+    const c=gdriveCfg(); let view, picker=null, done=false;
+    const finish=v=>{ if(done) return; done=true;
+      try{ if(picker){ picker.setVisible(false); if(picker.dispose) picker.dispose(); } }catch(e){ console.warn(e); }
+      res(v); };
     if(mode==="folder") view=new google.picker.DocsView(google.picker.ViewId.FOLDERS).setSelectFolderEnabled(true).setIncludeFolders(true).setMimeTypes("application/vnd.google-apps.folder");
     else view=new google.picker.DocsView(google.picker.ViewId.DOCS).setIncludeFolders(true).setMimeTypes("application/json");
-    new google.picker.PickerBuilder().setOAuthToken(driveTok).setDeveloperKey(c.apiKey).setAppId(c.appId)
-      .enableFeature(google.picker.Feature.SUPPORT_DRIVES).addView(view)
-      .setTitle(mode==="folder"? "Choose the folder for the new file" : "Open an OBE Course Manager file")
-      .setCallback(d=>{ if(d.action===google.picker.Action.PICKED) res(d.docs[0]); else if(d.action===google.picker.Action.CANCEL) res(null); })
-      .build().setVisible(true); }); },
+    try{
+      const b=new google.picker.PickerBuilder().setOAuthToken(driveTok).setDeveloperKey(c.apiKey).setAppId(c.appId)
+        .enableFeature(google.picker.Feature.SUPPORT_DRIVES).addView(view)
+        .setTitle(mode==="folder"? "Click a folder once to select it, then press Select" : "Open an OBE Course Manager file")
+        .setCallback(d=>{ if(d.action===google.picker.Action.PICKED) finish(d.docs[0]); else if(d.action===google.picker.Action.CANCEL) finish(null); });
+      picker=b.build(); picker.setVisible(true);
+    }catch(e){ finish(null); throw e; }
+  }); },
   async api(url, opts){
     opts=opts||{}; const h=Object.assign({ Authorization:"Bearer "+driveTok }, opts.headers||{});
     const r=await fetch(url, Object.assign({}, opts, { headers:h }));
@@ -993,6 +1007,38 @@ function driveSuggestedName(){
   const c=activeCourse(); if(!c) return "obe-course-data.json";
   return ((c.code||"course")+"_"+(c.semester||"")).replace(/[^\w.-]+/g,"_").replace(/^_+|_+$/g,"")+".json";
 }
+/* Browser prompt()/confirm() are suppressed by Edge (and others) while an overlay such as the
+   Google picker is on screen — the call returns null and the flow gives up silently, which is
+   exactly how v2.37 failed. Everything the Drive flow asks is therefore asked by OCM itself,
+   before any picker opens. */
+function ocmDialog({title, note, value, placeholder, buttons}){
+  return new Promise(res=>{
+    const back=document.createElement("div"); back.className="ocm-modal-back";
+    const hasInput = value!==undefined;
+    back.innerHTML=`<div class="ocm-modal" role="dialog" aria-modal="true">
+      <h3>${esc(title)}</h3>
+      ${note? `<p>${note}</p>`:""}
+      ${hasInput? `<input class="di" id="ocmDlgIn" value="${esc(value)}" placeholder="${esc(placeholder||"")}" spellcheck="false">`:""}
+      <div class="btn-row">${buttons.map((b,i)=>
+        `<button class="btn ${b.kind==="secondary"?"secondary":b.kind==="danger"?"danger":""}" data-i="${i}">${esc(b.label)}</button>`).join("")}</div>
+    </div>`;
+    let done=false;
+    const close=v=>{ if(done) return; done=true; document.removeEventListener("keydown",onKey); back.remove(); res(v); };
+    const val=()=>{ const el=document.getElementById("ocmDlgIn"); return el? el.value : ""; };
+    function onKey(e){
+      if(e.key==="Escape"){ e.preventDefault(); close(null); }
+      else if(e.key==="Enter" && hasInput){ const d=buttons.findIndex(b=>b.primary); if(d>=0){ e.preventDefault(); close({ action:buttons[d].action, value:val() }); } }
+    }
+    back.addEventListener("click", e=>{ if(e.target===back) close(null); });
+    back.querySelectorAll("button[data-i]").forEach(btn=>btn.addEventListener("click",()=>{
+      const b=buttons[+btn.dataset.i]; close({ action:b.action, value:val() });
+    }));
+    document.addEventListener("keydown",onKey);
+    document.body.appendChild(back);
+    const el=document.getElementById("ocmDlgIn");
+    if(el){ el.focus(); const dot=el.value.lastIndexOf("."); el.setSelectionRange(0, dot>0? dot : el.value.length); }
+  });
+}
 async function openFromDrive(){
   if(!gdriveAvailable()){ gdriveUnavailableNotice(); return; }
   try{
@@ -1001,7 +1047,12 @@ async function openFromDrive(){
     const text=await gdriveWithAuth(()=>GD.download(doc.id));
     const data=JSON.parse(text);
     if(!data || !Array.isArray(data.courses)) throw new Error("\""+doc.name+"\" is not an OBE Course Manager data file");
-    if(state.courses.length && !confirm("Replace the data currently in this browser with the contents of \""+doc.name+"\" from Google Drive?")) return;
+    if(state.courses.length){
+      const ok=await ocmDialog({ title:"Replace what is in this browser?",
+        note:"“"+esc(doc.name)+"” will become the course data in this browser. Anything here that is not already saved to a file will be lost.",
+        buttons:[ {label:"Open the Drive file", action:"ok", primary:true}, {label:"Cancel", action:"cancel", kind:"secondary"} ] });
+      if(!ok || ok.action==="cancel") return;
+    }
     const m=await gdriveWithAuth(()=>GD.meta(doc.id));
     adoptState(data);
     await gdriveLink({ id:doc.id, name:m.name||doc.name, version:m.version, modifiedTime:m.modifiedTime });
@@ -1012,11 +1063,32 @@ async function openFromDrive(){
 async function saveToDriveAs(){
   if(!gdriveAvailable()){ gdriveUnavailableNotice(); return; }
   try{
+    /* Name first, inside OCM, while nothing is overlaying the page. Choosing a folder is
+       optional — most people want the file saved, not a tour of their Drive. */
+    const ans=await ocmDialog({
+      title:"Save to Google Drive",
+      note:"The file is created in your own Google Drive. Choose a folder if you keep course files in one — otherwise it goes to the top level of My Drive, and you can move it later in Drive.",
+      value:driveSuggestedName(), placeholder:"course-file.json",
+      buttons:[ {label:"Save to My Drive", action:"root", primary:true},
+                {label:"Choose a folder…", action:"folder", kind:"secondary"},
+                {label:"Cancel", action:"cancel", kind:"secondary"} ]
+    });
+    if(!ans || ans.action==="cancel") return;
+    let name=String(ans.value||"").trim(); if(!name) name=driveSuggestedName();
+    if(!/\.json$/i.test(name)) name+=".json";
     await gdriveEnsure();
-    const folder=await GD.pick("folder"); if(!folder) return;
-    let name=prompt("File name on Google Drive:", driveSuggestedName()); if(!name) return;
-    name=name.trim(); if(!/\.json$/i.test(name)) name+=".json";
-    const m=await gdriveWithAuth(()=>GD.create(name, JSON.stringify(state, null, 1), folder.id));
+    let parent=null;
+    if(ans.action==="folder"){
+      const folder=await GD.pick("folder");
+      if(!folder){
+        /* Cancelling the picker used to end the whole flow in silence. Offer the obvious way on. */
+        const again=await ocmDialog({ title:"No folder was chosen",
+          note:"Save “"+esc(name)+"” to the top level of My Drive instead? You can move it into a folder afterwards, in Google Drive.",
+          buttons:[ {label:"Save to My Drive", action:"root", primary:true}, {label:"Cancel", action:"cancel", kind:"secondary"} ] });
+        if(!again || again.action==="cancel") return;
+      } else parent=folder.id;
+    }
+    const m=await gdriveWithAuth(()=>GD.create(name, JSON.stringify(state, null, 1), parent));
     await gdriveLink({ id:m.id, name:m.name||name, version:m.version, modifiedTime:m.modifiedTime });
     updateFileChip(); renderTab(window._currentTab||"dashboard");
     toast("Saved to Google Drive: "+driveFile.name+" — changes now save to this file");

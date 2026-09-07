@@ -1,6 +1,6 @@
 # OBE Course Manager — Release Notes
 
-**Version:** v2.37 · **First release:** July 13, 2026
+**Version:** v2.38 · **First release:** July 13, 2026
 **Live at:** https://mazhar17.github.io/ocm/
 **License:** © 2026 Prof. Mazharul Islam ([mazhar17.github.io/MI](https://mazhar17.github.io/MI)) · Creative Commons Attribution (CC BY) 4.0 International
 
