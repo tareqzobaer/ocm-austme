@@ -8618,6 +8618,12 @@ let embedFinalizingDocKey = null;
 // often will) have approved on different days, so these are two distinct
 // values, never a single shared date.
 let embedCoordApprovedDateStr = "", embedHeadApprovedDateStr = "";
+// Set whenever embedSignatureHtml() actually renders a cursive signature
+// (not the blank placeholder) while building one document's HTML — reset
+// per-document in embedSaveDoc(), read by embedBuildPdfHtml() to decide
+// whether that document needs the "electronically generated and signed"
+// notice appended.
+let embedAnySignatureRendered = false;
 
 function embedFreshCourse(){
   return ensureAust({
@@ -8849,6 +8855,7 @@ function embedSignatureHtml(name, shouldShow){
   if(!(shouldShow && name)) return "__________________";
   const plain = stripTitlePrefix(name);
   if(!plain) return "__________________";
+  embedAnySignatureRendered = true;
   return '<span style="font-family:\'OCMSignature\',cursive;'
     + 'font-size:15px;color:#1a3d7c;border-bottom:1px solid #444;'
     + 'padding:0 4px 1px;display:inline-block;min-width:150px;line-height:1.3;vertical-align:bottom">'
@@ -8856,10 +8863,13 @@ function embedSignatureHtml(name, shouldShow){
 }
 function embedBuildPdfHtml(key, bodyHtml){
   const land = LANDSCAPE_DOCS.includes(key);
+  const noticeHtml = embedAnySignatureRendered
+    ? '<p style="margin:14px 0 0;padding-top:8px;border-top:1px solid #cbd5e1;font-size:10.5px;color:#475569;font-style:italic;page-break-inside:avoid">This is an electronically generated and signed document.</p>'
+    : "";
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(DOC_TITLES[key]||"Document")+'</title><style>'
     + '@page{ size:'+(land? "A4 landscape":"A4 portrait")+'; margin:10mm; }\n'
     + embedGetPageCss()
-    + '</style></head><body><div id="tab-docs" class="tab active"><div class="report-sheet">' + bodyHtml + '</div></div></body></html>';
+    + '</style></head><body><div id="tab-docs" class="tab active"><div class="report-sheet">' + bodyHtml + noticeHtml + '</div></div></body></html>';
 }
 async function embedSaveDoc(key){
   const c = activeCourse(); if(!c) return;
@@ -8873,6 +8883,7 @@ async function embedSaveDoc(key){
     // problem for the Word export path.
     const host = document.createElement("div");
     embedExporting = true;
+    embedAnySignatureRendered = false;
     try { host.innerHTML = docsRegistry()[key][1](c); }
     finally { embedExporting = false; }
     host.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
@@ -8922,8 +8933,20 @@ window.addEventListener("message", function(event){
     embedCoordApprovedDateStr = msg.coordApprovedDateStr || "";
     embedHeadApprovedDateStr  = msg.headApprovedDateStr  || "";
     renderCourseSelect();
-    showTab("course");
     updateFileChip();
+    if(embedFinalizingDocKey){
+      // Coordinator-finalize launch (openOCMForRegenerate() in ocm.html) —
+      // the coordinator already made their decision from the dashboard;
+      // there's nothing left to review inside OCM itself, so build and send
+      // the one signed document straight away instead of making them find
+      // the Documents tab and click "Save to OBE Drive" by hand. Land on
+      // the Documents tab regardless, so if embedSaveDoc() fails, the error
+      // toast has visible context rather than firing over a blank Course tab.
+      showTab("docs");
+      embedSaveDoc(embedFinalizingDocKey);
+    } else {
+      showTab("course");
+    }
   } else if(msg.type === "OCM_SAVE_JSON_RESULT" || msg.type === "OCM_SAVE_DOCS_RESULT"){
     if(msg.type === "OCM_SAVE_JSON_RESULT") { embedDirty = !msg.success; updateFileChip(); }
     if(msg.type === "OCM_SAVE_DOCS_RESULT"){
