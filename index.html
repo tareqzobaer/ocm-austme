@@ -6841,6 +6841,9 @@ function showDoc(d){ window._docSel = d; renderDocs(); }
 /* ---- Document 1: Course Outline ---- */
 function docOutline(c){
   const o = c.aust.outline;
+  const preparedNameVal = o.prepared || c.instructor;
+  const checkedNameVal  = embedFallback(o.checked, embedCoordinatorName);
+  const approvedNameVal = embedFallback(o.approved, embedHeadName);
   const coRows = c.cos.map((co,i)=>`
     <tr><td style="text-align:center"><b>${i+1}</b></td>
       <td>${esc(co.statement)}</td>
@@ -6921,9 +6924,9 @@ function docOutline(c){
   <table class="tbl"><thead><tr><th style="width:200px">Type</th><th style="width:200px">Title</th><th>Link / location</th><th style="width:120px">Related CO(s)</th></tr></thead>
     <tbody>${c.aust.learnRes.filter(r=>(r.title||"").trim()||(r.url||"").trim()).map(r=>`<tr><td>${esc(r.type||"")}</td><td>${esc(r.title||"")}</td><td style="word-break:break-all">${esc(r.url||"")}</td><td>${(r.cos||[]).map(id=>{const j=c.cos.findIndex(x=>x.id===id); return j>=0? "CO"+(j+1):null;}).filter(Boolean).join(", ")||"—"}</td></tr>`).join("")}</tbody></table>` : ""}
   <table class="tbl" style="margin-top:18px"><tr>
-    <td style="width:33%;vertical-align:top">Prepared by:<br><br>Signature: __________________<br>Name: ${di('outline.prepared', o.prepared || c.instructor)}<br>Department: ${di('outline.preparedDept', o.preparedDept || c.aust.outline.dept || inst().dept || "")}<br>Date: ${di('outline.preparedDate', embedFallback(o.preparedDate, embedTodayStr()), '', 'width:120px')}</td>
-    <td style="width:33%;vertical-align:top">Checked by:<br><br>Signature: __________________<br>Name: ${di('outline.checked', embedFallback(o.checked, embedCoordinatorName))}<br>Date: ${di('outline.checkedDate', embedFallback(o.checkedDate, embedTodayStr()), '', 'width:120px')}</td>
-    <td style="width:33%;vertical-align:top">Approved by:<br><br>Signature: __________________<br>Name: ${di('outline.approved', embedFallback(o.approved, embedHeadName))}<br>Date: ${di('outline.approvedDate', embedFallback(o.approvedDate, embedTodayStr()), '', 'width:120px')}</td>
+    <td style="width:33%;vertical-align:top">Prepared by:<br><br>Signature: ${embedSignatureHtml(preparedNameVal)}<br>Name: ${di('outline.prepared', preparedNameVal)}<br>Department: ${di('outline.preparedDept', o.preparedDept || c.aust.outline.dept || inst().dept || "")}<br>Date: ${di('outline.preparedDate', embedFallback(o.preparedDate, embedTodayStr()), '', 'width:120px')}</td>
+    <td style="width:33%;vertical-align:top">Checked by:<br><br>Signature: ${embedSignatureHtml(checkedNameVal)}<br>Name: ${di('outline.checked', checkedNameVal)}<br>Date: ${di('outline.checkedDate', embedFallback(o.checkedDate, embedTodayStr()), '', 'width:120px')}</td>
+    <td style="width:33%;vertical-align:top">Approved by:<br><br>Signature: ${embedSignatureHtml(approvedNameVal)}<br>Name: ${di('outline.approved', approvedNameVal)}<br>Date: ${di('outline.approvedDate', embedFallback(o.approvedDate, embedTodayStr()), '', 'width:120px')}</td>
   </tr></table>
   <p style="font-size:11.5px;color:var(--muted);margin-top:10px">Annexes (Generic PEOs, PEO-PO mapping, and Bloom's Taxonomy tables) follow the standard AUST template and may be appended from the approved document.</p>`;
 }
@@ -7478,7 +7481,7 @@ function docVetCEP(c){
     <td style="width:50%">Signature of the ${esc(role("vetter"))} 1: __________________<br>Date: __________<br>Name: ${di('vet.vetter1', c.aust.vet.vetter1, 'Name of the first '+role("vetter").toLowerCase())}</td>
     <td style="width:50%">Signature of the ${esc(role("vetter"))} 2: __________________<br>Date: __________<br>Name: ${di('vet.vetter2', c.aust.vet.vetter2, 'Name of the second '+role("vetter").toLowerCase())}</td>
   </tr></table>
-  <p><br>Signature of the ${esc(role("hod"))}: __________________ &nbsp;&nbsp; Date: ${embedSigLine("__________", embedTodayStr())}<br>Name: ${embedSigLine("______________________________", embedHeadName)}</p>`;
+  <p><br>Signature of the ${esc(role("hod"))}: ${embedSignatureHtml(embedHeadName)} &nbsp;&nbsp; Date: ${embedSigLine("__________", embedTodayStr())}<br>Name: ${embedSigLine("______________________________", embedHeadName)}</p>`;
   }).join("");
   return `${docHead(title,"Complex Engineering Problem (" + dw.pre + ") and Activity (" + de.pre + ") coverage of the final examination — evidence auto-filled, judgment by the vetting committee")}${body}`;
 }
@@ -7823,7 +7826,7 @@ function docReport(c){
   <p style="margin-top:16px">Signature of the Instructor: __________________<br>Name of the Instructor: ${esc(c.instructor)}</p>
   <h2>7. Approval from the ${esc(role("hod"))}</h2>
   <p><b>7.1 Comments from the ${esc(role("hod"))}</b> ${dta('report.hod', r.hod, 2)}</p>
-  <p><br>Signature of the ${esc(role("hod"))}: __________________ &nbsp;&nbsp; Date: ${embedSigLine("__________", embedTodayStr())}<br>Name: ${embedSigLine("______________________________", embedHeadName)}</p>`;
+  <p><br>Signature of the ${esc(role("hod"))}: ${embedSignatureHtml(embedHeadName)} &nbsp;&nbsp; Date: ${embedSigLine("__________", embedTodayStr())}<br>Name: ${embedSigLine("______________________________", embedHeadName)}</p>`;
 }
 function addTopic(){
   const c = activeCourse(); if(!c) return;
@@ -8769,35 +8772,38 @@ function embedFallback(value, embedValue){
 function embedSigLine(blankPlaceholder, embedValue){
   return (embedExporting && embedValue) ? esc(embedValue) : blankPlaceholder;
 }
-/* Appended below the document body at save time — additive to whatever
-   blank "Signature: __________________" lines the document template
-   itself already has (docOutline's Prepared/Checked/Approved row etc. —
-   see embedFallback()/embedSigLine() above, which fill those in directly),
-   not a replacement for them. Names come from OCM_INIT (embedPreparerName
-   is just the signed-in faculty member; coordinator/head are typed once
-   in the OBE File Manager's coordinator dashboard) — any that weren't
-   set are simply omitted rather than shown blank. */
-function embedSignoffFooterHtml(){
-  const dateStr = embedTodayStr();
-  const cell = (label, name) => name
-    ? '<td style="padding:2px 20px 2px 0;white-space:nowrap">'+esc(label)+': <strong>'+esc(name)+'</strong></td>'
-    : "";
-  return '<div style="margin-top:22px;padding-top:10px;border-top:1px solid #cbd5e1;font-size:10.5px;color:#475569;page-break-inside:avoid">'
-    + '<table style="border-collapse:collapse"><tr>'
-    + cell("Prepared by", embedPreparerName)
-    + cell("OBE Coordinator", embedCoordinatorName)
-    + cell("Head of the Department", embedHeadName)
-    + '<td style="padding:2px 0;white-space:nowrap">Date: <strong>'+esc(dateStr)+'</strong></td>'
-    + '</tr></table>'
-    + '<p style="margin:6px 0 0;font-style:italic">This is an electronically generated and signed document.</p>'
-    + '</div>';
+/* Strips a LEADING academic/honorific title (possibly stacked, e.g. "Prof.
+   Dr.") before rendering a name as a script signature — deliberately a
+   whitelist of title words, not a blacklist, so a real name component that
+   happens to look like one (e.g. "Md." = Muhammad, "Mst." = Mosammat — both
+   ordinary Bangladeshi given-name prefixes, not titles) is never touched. */
+function stripTitlePrefix(name){
+  if(!name) return "";
+  let s = String(name).trim();
+  const titleRe = /^(prof\.?|professor|dr\.?|mr\.?|mrs\.?|ms\.?|miss|engr\.?)\s+/i;
+  let prev;
+  do { prev = s; s = s.replace(titleRe, "").trim(); } while(s !== prev);
+  return s;
+}
+/* Renders a script-style "signature" on a Signature: ____ line — only while
+   embedExporting (see embedFallback() above), and only the bare name (no
+   title), so it visually reads as an actual signature rather than a form
+   field. Falls back to the original blank underline otherwise. */
+function embedSignatureHtml(name){
+  if(!(embedExporting && name)) return "__________________";
+  const plain = stripTitlePrefix(name);
+  if(!plain) return "__________________";
+  return '<span style="font-family:\'Brush Script MT\',\'Lucida Handwriting\',\'Segoe Script\',cursive;'
+    + 'font-style:italic;font-size:21px;color:#1a3d7c;border-bottom:1px solid #444;'
+    + 'padding:0 6px 2px;display:inline-block;min-width:170px;line-height:1.1">'
+    + esc(plain) + '</span>';
 }
 function embedBuildPdfHtml(key, bodyHtml){
   const land = LANDSCAPE_DOCS.includes(key);
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(DOC_TITLES[key]||"Document")+'</title><style>'
     + '@page{ size:'+(land? "A4 landscape":"A4 portrait")+'; margin:10mm; }\n'
     + embedGetPageCss()
-    + '</style></head><body><div id="tab-docs" class="tab active"><div class="report-sheet">' + bodyHtml + embedSignoffFooterHtml() + '</div></div></body></html>';
+    + '</style></head><body><div id="tab-docs" class="tab active"><div class="report-sheet">' + bodyHtml + '</div></div></body></html>';
 }
 async function embedSaveDoc(key){
   const c = activeCourse(); if(!c) return;
