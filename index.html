@@ -6728,6 +6728,15 @@ function posOfWithPI(co){
   }).join(", ");
 }
 function di(path, val, ph, style){ return `<input class="di" value="${esc(val)}" placeholder="${esc(ph||"")}" style="${style||""}" onchange="austSet('${path}',this.value)">`; }
+/* Today's date in the DD/MM/YYYY shape the "Date of Submission" fields already
+   use as their placeholder — a plain default value (not persisted until the
+   field is actually edited/saved), same idea as "Prepared by" defaulting to
+   c.instructor. Not embed-specific — applies everywhere OCM runs. */
+function todayDDMMYYYY(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return pad(d.getDate()) + "/" + pad(d.getMonth()+1) + "/" + d.getFullYear();
+}
 /* All multi-line entry boxes: 5 rows by default, auto-growing with content (the rows argument is retained for compatibility but no longer used). */
 function dta(path, val, rows, ph){ return `<textarea class="di" rows="5" style="overflow-y:hidden" placeholder="${esc(ph||"")}" oninput="autoGrowTA(this)" onchange="austSet('${path}',this.value)">${esc(val)}</textarea>`; }
 function autoGrowAll(rootId){
@@ -7000,7 +7009,7 @@ function docSpec(c){
     <tr><th>1.2 Course Code &amp; Section</th><td>${esc(c.code)}${c.section? " ("+esc(c.section)+")":""}</td></tr>
     <tr><th>1.3 Name of the Course Instructor</th><td>${esc(c.instructor)}</td></tr>
     <tr><th>1.4 Semester Offered</th><td>${esc(c.semester)}</td></tr>
-    <tr><th>1.5 Date of Submission</th><td>${di('spec.submitDate', sp.submitDate, 'DD/MM/YYYY')}</td></tr>
+    <tr><th>1.5 Date of Submission</th><td>${di('spec.submitDate', sp.submitDate || todayDDMMYYYY(), 'DD/MM/YYYY')}</td></tr>
   </tbody></table>
   <h2>2. Student Learning Time (SLT)</h2>
   <table class="tbl"><tbody>
@@ -7723,7 +7732,7 @@ function docReport(c){
     <tr><th>1.2 Course Code &amp; Section</th><td>${esc(c.code)}${c.section? " ("+esc(c.section)+")":""}</td></tr>
     <tr><th>1.3 Name of the Course Instructor</th><td>${esc(c.instructor)}</td></tr>
     <tr><th>1.4 Semester Offered</th><td>${esc(c.semester)}</td></tr>
-    <tr><th>1.5 Date of Submission</th><td>${di('report.submitDate', r.submitDate, 'DD/MM/YYYY')}</td></tr>
+    <tr><th>1.5 Date of Submission</th><td>${di('report.submitDate', r.submitDate || todayDDMMYYYY(), 'DD/MM/YYYY')}</td></tr>
   </tbody></table>
   <h2>2. Learning Outcomes</h2>
   <h2>2.1 Analysis of existing COs, POs, and Bloom's Taxonomy levels</h2>
