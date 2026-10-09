@@ -4783,9 +4783,9 @@ function renderAttain(){
 }
 /* ===== Cohort Comparison: all courses sharing this course code, ordered by semester ===== */
 function semKey(s){
-  const m=/(spring|summer|fall)\s*[,']?\s*(\d{4})/i.exec(String(s||""));
+  const m=/(spring|summer|fall)\s*[,']?\s*(\d{4}|\d{2})(?!\d)/i.exec(String(s||""));   // "Fall 2025" or "Fall 25"
   if(!m) return -1;                                   // unparsable semesters sort first, in insertion order
-  return (+m[2])*4 + ({spring:0,summer:1,fall:2}[m[1].toLowerCase()]||0);
+  return (m[2].length===2? 2000 + +m[2] : +m[2])*4 + ({spring:0,summer:1,fall:2}[m[1].toLowerCase()]||0);
 }
 function cohortsOf(c){
   const code=String(c.code||"").trim().toLowerCase();
@@ -5636,9 +5636,10 @@ function comodFromGap(key){
   save(); renderCQI(); toast("Modification form drafted — open COs Section → CO Modification Request");
 }
 function nextSemesterOf(s){
-  const m=/(spring|summer|fall)\s*[,']?\s*(\d{4})/i.exec(String(s||"")); if(!m) return "";
+  const m=/(spring|summer|fall)\s*[,']?\s*(\d{4}|\d{2})(?!\d)/i.exec(String(s||"")); if(!m) return "";
   const y=+m[2], t=m[1].toLowerCase();
-  return t==="fall"? ("Spring "+(y+1)) : t==="spring"? ("Fall "+y) : ("Fall "+y);
+  const yr=n=> m[2].length===2? String(n%100).padStart(2,"0") : String(n);   // keeps the style given: "Fall 25" → "Spring 26"
+  return t==="fall"? ("Spring "+yr(y+1)) : t==="spring"? ("Fall "+yr(y)) : ("Fall "+yr(y));
 }
 /* Framework transition (v2.2 -> v3) drafted for every mapped CO */
 function comodFrameworkTransition(){
@@ -8680,6 +8681,9 @@ const EMBED_QS       = new URLSearchParams(location.search);
 const IS_EMBED        = window.self !== window.top && EMBED_QS.get("embed") === "1";
 const embedCourseCode = EMBED_QS.get("course")   || "";
 const embedSemesterCode = EMBED_QS.get("semester") || "";
+/* The course's Semester field (shown in Course Info, printed on every document, read by
+   nextSemesterOf()/semKey()) holds a label, never the bare code: F25 → "Fall 25", S26 → "Spring 26". */
+const embedSemesterName = (m=>m? (m[1]==="F"? "Fall" : "Spring")+" "+m[2] : embedSemesterCode)(/^([SF])(\d{2})$/.exec(embedSemesterCode));
 const embedTitle      = EMBED_QS.get("title")    || "";
 let embedDirty = false, embedTimer = null, embedReady = false, embedRecentSemesters = [];
 // Stamped onto the footer of every key document saved back to the OBE File
@@ -8717,7 +8721,7 @@ let embedAnySignatureRendered = false;
 function embedFreshCourse(){
   return ensureAust({
     id: embedCourseCode + "_" + embedSemesterCode, code: embedCourseCode, title: embedTitle, credit: "",
-    semester: embedSemesterCode, program: "", instructor: "", section: "",
+    semester: embedSemesterName, program: "", instructor: "", section: "",
     cos: [], assessments: [], students: [], marks: {}, cfg: defaultCfg(),
   });
 }
@@ -8780,9 +8784,9 @@ function embedLoadJsonFile(input){
       const data = JSON.parse(e.target.result);
       const incoming = Array.isArray(data.courses) ? data.courses[0] : (data.id && data.cos ? data : null);
       if(!incoming) throw new Error("Unrecognized format — expected an OBE Course Manager course file");
-      if(!confirm(`Replace this course's data with "${file.name}"?\n\nIts course code/semester will be kept as ${embedCourseCode} / ${embedSemesterCode} regardless of what the file contains. This cannot be undone.`)) return;
+      if(!confirm(`Replace this course's data with "${file.name}"?\n\nIts course code/semester will be kept as ${embedCourseCode} / ${embedSemesterName} regardless of what the file contains. This cannot be undone.`)) return;
       const id = (activeCourse()||{}).id || embedCourseId();
-      const merged = ensureAust(Object.assign({}, incoming, { id, code: embedCourseCode, semester: embedSemesterCode }));
+      const merged = ensureAust(Object.assign({}, incoming, { id, code: embedCourseCode, semester: embedSemesterName }));
       state.courses = [merged];
       state.activeCourseId = merged.id;
       save(); refresh();
@@ -8794,7 +8798,7 @@ function embedLoadJsonFile(input){
 }
 function embedCourseId(){ return embedCourseCode + "_" + embedSemesterCode; }
 function embedLoadFromSemester(courseCode, semesterCode, semesterName){
-  if(!confirm(`Replace this course's data with a new-semester copy of your ${semesterName} offering?\n\n${NEW_SEMESTER_KEPT_CLEARED}\n\nIts course code/semester will be kept as ${embedCourseCode} / ${embedSemesterCode} regardless. This cannot be undone.`)) return;
+  if(!confirm(`Replace this course's data with a new-semester copy of your ${semesterName} offering?\n\n${NEW_SEMESTER_KEPT_CLEARED}\n\nIts course code/semester will be kept as ${embedCourseCode} / ${embedSemesterName} regardless. This cannot be undone.`)) return;
   embedPostToParent({ type:"OCM_FETCH_PREV", courseCode, semesterCode });
 }
 /* Maps the six "Key Documents" to the OBE File Manager's numbered folders
@@ -9011,6 +9015,8 @@ window.addEventListener("message", function(event){
     let course = null;
     if(msg.existingJson){ try{ course = JSON.parse(msg.existingJson); }catch(e){ course = null; } }
     course = ensureAust(course || embedFreshCourse());
+    // Saved by an earlier version with the bare code ("F25") — show the name; persisted with the next edit.
+    if(!String(course.semester||"").trim() || /^[SF]\d{2}$/.test(course.semester)) course.semester = embedSemesterName;
     state.courses = [course];
     state.activeCourseId = course.id;
     embedReady = true; embedDirty = false;
@@ -9061,7 +9067,7 @@ window.addEventListener("message", function(event){
     try{ incoming = JSON.parse(msg.json); }catch(e){}
     if(!incoming){ toast("Could not load "+label+" — unreadable data"); return; }
     const id = (activeCourse()||{}).id || embedCourseId();
-    const merged = ensureAust(Object.assign({}, incoming, { id, code: embedCourseCode, semester: embedSemesterCode }));
+    const merged = ensureAust(Object.assign({}, incoming, { id, code: embedCourseCode, semester: embedSemesterName }));
     resetForNewSemester(merged);
     const applied = offerApprovedComod(merged);
     state.courses = [merged];
