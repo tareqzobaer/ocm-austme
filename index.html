@@ -723,7 +723,7 @@ function ensureAust(c){
   a.vet = Object.assign({vetter1:"",vetter2:""}, a.vet||{});
   if(a.outline.grading===undefined) a.outline.grading="";   /* per-course override; blank means "use the institutional scale in Setup" */
   /* CO Modification Request — rows are drafted from CQI findings or added by hand */
-  a.comod = Object.assign({ committee:"", convener:"", submitDate:"", effectiveFrom:"", decision:"", comments:"", rows:[] }, a.comod||{});
+  a.comod = Object.assign({ committee:"", convener:"", submitDate:"", effectiveFrom:"", decision:"", decisionDate:"", comments:"", rows:[] }, a.comod||{});
   if(!Array.isArray(a.comod.rows)) a.comod.rows = [];
   a.report = Object.assign({coComment:"",poComment:"",feedback:"",surveys:"",hod:"",submitDate:""}, a.report||{});
   a.report.grades = Object.assign({"A+":"","A":"","A-":"","B+":"","B":"","B-":"","C+":"","C":"","D":"","F":""}, a.report.grades||{});
@@ -1585,18 +1585,32 @@ function toggleDashStep(n){
   foldSet("dashboard","step:"+n, !foldIsOpen("dashboard","step:"+n));
   renderDashboard();
 }
+const NEW_SEMESTER_KEPT_CLEARED = "Kept: COs, CO-PO mapping, T&L activities, learning resources, assessments, topics, survey wording and questions, settings — and the Course Report CQI actions are carried into the new Course Specifications (6.1). A CO Modification Request marked approved, with the convener's name and decision date filled in, is offered for applying next.\nCleared: students, marks, survey tallies and open-question summaries, actual hours, grades, report comments, the Suggested Modifications working boxes, and the CQI Section's narratives, low-attainment analyses, stakeholder register and evidence ticks.";
 function duplicateForNewSemester(){
-  if(IS_EMBED){ alert("Use \"Launch OCM\" from that semester's own course page in the OBE File Manager instead — it's tied to one course/semester at a time, and your previous semesters' data is already one click away there."); return; }
+  if(IS_EMBED){ alert("This OCM window is tied to one course/semester. To start it from a previous offering, use 📁 OBE Drive ▾ → ⬆ Load from <semester>… — it carries the course forward the same way."); return; }
   const c = activeCourse(); if(!c) return;
-  if(!confirm("Prepare a copy of this course for a new semester?\n\nKept: COs, CO-PO mapping, T&L activities, learning resources, assessments, topics, settings — and the Course Report CQI actions are carried into the new Course Specifications (6.1).\nCleared: students, marks, survey tallies, actual hours, grades, report comments, the Suggested Modifications working boxes, and the CQI Section's narratives, low-attainment analyses, stakeholder register and evidence ticks.")) return;
+  if(!confirm("Prepare a copy of this course for a new semester?\n\n" + NEW_SEMESTER_KEPT_CLEARED)) return;
   const n = ensureAust(JSON.parse(JSON.stringify(c)));
   n.id = uid();
   n.semester = "";
+  resetForNewSemester(n);
+  const applied = offerApprovedComod(n);
+  state.courses.push(n);
+  state.activeCourseId = n.id;
+  save(); refresh();
+  toast("New-semester copy ready"+(applied? " with "+applied+" approved CO change(s) applied" : "")+" — set the Semester in Course Info");
+}
+/* Turns a copy of a past offering into the start of the next one (see NEW_SEMESTER_KEPT_CLEARED).
+   n must be an ensureAust()'d copy — it is modified in place; id/semester are left to the caller.
+   Shared by duplicateForNewSemester() and the embed-mode "Load from <semester>" (OCM_FETCH_PREV_RESULT). */
+function resetForNewSemester(n){
   n.students = []; n.marks = {};
   n.cos.forEach(co=>{ co.modStatement=""; co.modPO=""; co.modBloom=""; });
-  n.aust.survey = { tally: {}, fbOn: Object.assign({}, c.aust.survey.fbOn), fbTally: {}, resFbOn: c.aust.survey.resFbOn, resTally: {} };
+  const s = n.aust.survey;   // responses belong to one offering; the toggles, wording overrides and open questions carry forward
+  s.tally = {}; s.fbTally = {}; s.resTally = {};
+  s.openQ.forEach(o=>{ o.sum = ""; });
   n.aust.spec.submitDate = "";
-  n.aust.spec.cqiPrev = n.aust.spec.cqiPrev.map((x,i)=>({ rec: (c.aust.report.cqi && c.aust.report.cqi[i]) || "", ref: "" }));
+  n.aust.spec.cqiPrev = n.aust.spec.cqiPrev.map((x,i)=>({ rec: (n.aust.report.cqi && n.aust.report.cqi[i]) || "", ref: "" }));   // before r.cqi is cleared below
   n.aust.spec.topics.forEach(t=>{ t.actual=""; t.reason=""; });
   n.aust.tlaSuggest = ""; n.aust.assessSuggest = "";   // per-offering working notes start empty
   n.aust.cqi.complex = ""; n.aust.cqi.effective = ""; n.aust.cqi.design = ""; n.aust.cqi.moderation = "";  // CQI narratives are written fresh each offering
@@ -1607,10 +1621,83 @@ function duplicateForNewSemester(){
   r.cqi = ["","","","",""];
   r.resources = {}; r.resA = {}; r.res33 = null;  // re-initialized blank (with template defaults) by ensureAust on next render
   /* r.tla / r.tlaA are kept intentionally: "was it effective?" history feeds the T&L recommender next semester */
-  state.courses.push(n);
-  state.activeCourseId = n.id;
-  save(); refresh();
-  toast("New-semester copy ready — set the Semester in Course Info");
+}
+/* Offers to apply a committee-approved CO Modification Request (its Proposed side) to the COs of
+   the new offering n, then starts the request afresh. Declining keeps the request, so it is offered
+   again next semester (for changes effective later). Framework-transition rows (r.mig) are left to
+   migAccept(), which starts the Version 3 course itself. Returns the number of rows applied. */
+function offerApprovedComod(n){
+  const m = n.aust.comod;
+  const rows = m.decision==="approved"? m.rows.filter(r=>!r.mig) : [];
+  if(!rows.length) return 0;
+  const missing = comodMissingEvidence(m);
+  if(missing.length){
+    alert(`The CO Modification Request is marked approved, but ${missing.join(" and ")} ${missing.length>1? "are" : "is"} missing, so its changes were NOT applied.\n\nFill ${missing.length>1? "them" : "it"} in from the signed form on the request in the previous offering, then start this offering from it again.`);
+    return 0;
+  }
+  const count = a=>rows.filter(r=>(r.action||"modify")===a).length;
+  const parts = [["modify","modified"],["add","added"],["delete","deleted"]].filter(([a])=>count(a)).map(([a,w])=>count(a)+" "+w).join(", ");
+  if(!confirm(`The CO Modification Request is marked approved — convener ${m.convener}, decided ${m.decisionDate}${m.effectiveFrom? ", effective from "+m.effectiveFrom : ""}. Check these details against the signed form.\n\nApply it to this offering's COs now? (${parts})\n\nChoose Cancel if it takes effect in a later semester — the request is then kept and offered again next time.`)) return 0;
+  const applied = rows.filter(r=>applyComodRow(n, r)).length;
+  n.aust.comod = { committee: m.committee, convener: m.convener, submitDate:"", effectiveFrom:"", decision:"", decisionDate:"", comments:"", rows:[] };
+  ensureAust(n);   // fills the remaining fields of any added CO
+  return applied;
+}
+/* The app never sees the signed form, so a request marked approved changes no CO until the convener's
+   name and the decision date have been copied from it. Returns what is still missing (empty when complete). */
+function comodMissingEvidence(m){
+  return [[m.convener,"the convener's name"],[m.decisionDate,"the decision date"]].filter(([v])=>!String(v||"").trim()).map(([,w])=>w);
+}
+/* One row's Proposed side onto the course. A blank proposed field leaves that part of the CO as it
+   is (rows added by hand often fill only the statement); a PO that stays mapped keeps its strength,
+   a new one is ticked as togglePO() would. Returns false when the row could not be applied. */
+function applyComodRow(n, r){
+  const nu = r.nu || {}, filled = v=>String(v||"").trim() !== "";
+  if(r.action==="delete"){
+    const before = n.cos.length;
+    n.cos = n.cos.filter(co=>co.id!==r.coId);   // items mapped to it become unmapped marks, as with deleteCO()
+    return n.cos.length < before;
+  }
+  const isAdd = r.action==="add";
+  if(isAdd && !filled(nu.statement)) return false;
+  const co = isAdd? { id: uid(), statement:"", btDomain:"Cognitive", bloom:"Apply", bloomA:"", bloomP:"", po:{} }   // as addCO()
+                  : n.cos.find(x=>x.id===r.coId);
+  if(!co) return false;
+  const nums = (v,max)=>String(v||"").split(/[^0-9]+/).map(Number).filter(k=>k>=1&&k<=max).filter((k,i,a)=>a.indexOf(k)===i).sort((a,b)=>a-b);
+  if(filled(nu.statement)) co.statement = String(nu.statement).trim();
+  const lvl = parseBloomLevel(nu.bloom);
+  if(lvl){ co.btDomain = lvl.domain; co[{Cognitive:"bloom", Affective:"bloomA", Psychomotor:"bloomP"}[lvl.domain]] = lvl.name; }
+  const pos = nums(nu.po, N_PO);
+  if(pos.length){
+    const old = co.po || {};
+    co.po = {}; pos.forEach(p=>{ co.po[p] = old[p]>0? old[p] : 1; });
+    if(co.pi) Object.keys(co.pi).forEach(p=>{ if(!co.po[p]) delete co.pi[p]; });   // as togglePO(): an unmapped PO drops its indicators
+  }
+  ["wk","wp","ea"].forEach(g=>{ if(filled(nu[g])) co[g] = nums(nu[g], attrDef(n,g).max); });
+  if(fwV3(n) && filled(nu.pi)){
+    const pis = coursePIs(n);
+    co.pi = {};
+    (String(nu.pi).match(/\b(\d{1,2})([a-z])\b/gi)||[]).forEach(lbl=>{
+      const p = parseInt(lbl,10), k = lbl.slice(-1).toLowerCase().charCodeAt(0)-97;
+      if(co.po[p] && (pis[p]||[])[k]!==undefined && !(co.pi[p]||[]).includes(k)) (co.pi[p] = co.pi[p]||[]).push(k);
+    });
+  }
+  if(isAdd) n.cos.push(co);
+  syncAttrStrings(n, co);
+  return true;
+}
+/* "Analyze", "Receiving (A1)", "Receiving", "C4", "Apply (C3)" → {domain, name}; null if unrecognised. */
+function parseBloomLevel(v){
+  const s = String(v||"").trim().toLowerCase(); if(!s) return null;
+  const lists = { Cognitive: BLOOMS, Affective: BLOOM_A, Psychomotor: BLOOM_P };
+  for(const d in lists){
+    const name = lists[d].find(x=>x.toLowerCase()===s || x.split(" (")[0].toLowerCase()===s);
+    if(name) return { domain: d, name };
+  }
+  const t = /\b([cap])\s*([1-7])\b/.exec(s);
+  const d = t && { c:"Cognitive", a:"Affective", p:"Psychomotor" }[t[1]];
+  const name = d && lists[d][+t[2]-1];
+  return name? { domain: d, name } : null;
 }
 
 /* ============ Course Info ============ */
@@ -1985,7 +2072,7 @@ function comodCard(c){
     <p class="hint">An approved Course Outcome is changed through the <b>Specialization Committee</b>, not in place — so proposals live here and print as the <b>CO Modification Request Form</b> (Documents Section). The <b>Existing</b> side is copied live from the COs above and cannot drift; you fill only the proposed side, the reason, and the SMART verification. Framework: <b>${v3? "Version 3 — WK / WP / EA"+ " and PO Indicators":"Version 2.2 — K / P / A"}</b>, printed on the form so a signed copy stays unambiguous.</p>
     <div class="grid c3" style="max-width:760px;margin-bottom:10px">
       <label class="fld">Specialization Committee <input class="di" value="${esc(m.committee)}" placeholder="e.g., Thermo-fluid Expert Group" onchange="austSet('comod.committee',this.value)"></label>
-      <label class="fld">Convener <input class="di" value="${esc(m.convener)}" placeholder="Name of the convener" onchange="austSet('comod.convener',this.value)"></label>
+      <label class="fld">Convener <input class="di" value="${esc(m.convener)}" placeholder="Name of the convener" onchange="austSet('comod.convener',this.value);renderCOs()"></label>
       <label class="fld">Effective from <input class="di" value="${esc(m.effectiveFrom)}" placeholder="e.g., ${esc(nextSemesterOf(c.semester)||"Spring 2027")}" onchange="austSet('comod.effectiveFrom',this.value)"></label>
     </div>
     ${n? `<div class="tbl-wrap"><table class="tbl">
@@ -1998,10 +2085,12 @@ function comodCard(c){
       ${n? `<button class="btn secondary small" onclick="showDoc('comod');showTab('docs')">🖨 Open the printable form</button>`:""}
     </div>
     ${n? `<div style="margin-top:10px">
-      <label style="font-size:12.5px;margin-right:14px"><input type="radio" name="comoddec" ${m.decision==="approved"?"checked":""} onchange="austSet('comod.decision','approved')"> Approved by the committee</label>
-      <label style="font-size:12.5px"><input type="radio" name="comoddec" ${m.decision==="not"?"checked":""} onchange="austSet('comod.decision','not')"> Not approved</label>
+      <label style="font-size:12.5px;margin-right:14px"><input type="radio" name="comoddec" ${m.decision==="approved"?"checked":""} onchange="austSet('comod.decision','approved');renderCOs()"> Approved by the committee</label>
+      <label style="font-size:12.5px;margin-right:14px"><input type="radio" name="comoddec" ${m.decision==="not"?"checked":""} onchange="austSet('comod.decision','not');renderCOs()"> Not approved</label>
+      <label style="font-size:12.5px">Decision date <input class="di" style="width:150px" value="${esc(m.decisionDate)}" placeholder="e.g., 12 May 2026" title="From the signed form — needed, with the convener's name, before an approved request can change the COs" onchange="austSet('comod.decisionDate',this.value);renderCOs()"></label>
       <textarea class="di" rows="2" style="width:100%;overflow-y:hidden;margin-top:6px" placeholder="Comments from the convener of the committee" oninput="autoGrowTA(this)" onchange="austSet('comod.comments',this.value)">${esc(m.comments)}</textarea>
-      ${m.decision==="approved"? `<p class="hint" style="margin-top:6px"><span class="badge green">approved</span> Apply these changes when you open the next offering — <b>⟳ Duplicate for New Semester</b> (Dashboard) will offer to carry them in. Keep the signed form as Annexure evidence.</p>`:""}
+      ${m.decision==="approved" && comodMissingEvidence(m).length? `<p class="hint" style="margin-top:6px"><span class="badge amber">incomplete</span> Marked approved, but ${comodMissingEvidence(m).join(" and ")} — copied from the signed form — ${comodMissingEvidence(m).length>1? "are" : "is"} still needed. Until then these changes will not be carried into the next offering.</p>`
+      : m.decision==="approved"? `<p class="hint" style="margin-top:6px"><span class="badge green">approved</span> Apply these changes when you open the next offering — ${IS_EMBED? "in its OCM window, <b>📁 OBE Drive ▾ → ⬆ Load from</b> this semester" : "<b>⟳ Duplicate for New Semester</b> (Dashboard)"} will offer to carry them in. Keep the signed form as Annexure evidence.</p>`:""}
     </div>`:""}
   </div>`;
 }
@@ -7444,7 +7533,7 @@ function docCOMod(c){
   </tbody></table>
   <p style="margin-top:8px"><b>Comments from the ${esc(role("convener"))} of the committee:</b></p>
   <textarea class="di" rows="3" style="width:100%;overflow-y:hidden;font-size:12.5px" placeholder="Comments from the convener of the committee…" oninput="autoGrowTA(this)" onchange="austSet('comod.comments',this.value)">${esc(m.comments)}</textarea>
-  <p style="margin-top:14px">Signature of the ${esc(role("convener"))}: __________________ &nbsp;&nbsp; Date: __________<br>Name of the ${esc(role("convener"))}: <span style="display:inline-block;min-width:230px">${di("comod.convener", m.convener, "Name of the convener")}</span></p>`;
+  <p style="margin-top:14px">Signature of the ${esc(role("convener"))}: __________________ &nbsp;&nbsp; Date: <span style="display:inline-block;min-width:130px">${di("comod.decisionDate", m.decisionDate, "Date of the decision")}</span><br>Name of the ${esc(role("convener"))}: <span style="display:inline-block;min-width:230px">${di("comod.convener", m.convener, "Name of the convener")}</span></p>`;
 }
 /* ---- Final Exam Vetting Form with CEP/CEA ---- */
 function docVetCEP(c){
@@ -8705,7 +8794,7 @@ function embedLoadJsonFile(input){
 }
 function embedCourseId(){ return embedCourseCode + "_" + embedSemesterCode; }
 function embedLoadFromSemester(courseCode, semesterCode, semesterName){
-  if(!confirm(`Replace this course's data with your ${semesterName} offering?\n\nIts course code/semester will be kept as ${embedCourseCode} / ${embedSemesterCode} regardless. This cannot be undone.`)) return;
+  if(!confirm(`Replace this course's data with a new-semester copy of your ${semesterName} offering?\n\n${NEW_SEMESTER_KEPT_CLEARED}\n\nIts course code/semester will be kept as ${embedCourseCode} / ${embedSemesterCode} regardless. This cannot be undone.`)) return;
   embedPostToParent({ type:"OCM_FETCH_PREV", courseCode, semesterCode });
 }
 /* Maps the six "Key Documents" to the OBE File Manager's numbered folders
@@ -8973,10 +9062,12 @@ window.addEventListener("message", function(event){
     if(!incoming){ toast("Could not load "+label+" — unreadable data"); return; }
     const id = (activeCourse()||{}).id || embedCourseId();
     const merged = ensureAust(Object.assign({}, incoming, { id, code: embedCourseCode, semester: embedSemesterCode }));
+    resetForNewSemester(merged);
+    const applied = offerApprovedComod(merged);
     state.courses = [merged];
     state.activeCourseId = merged.id;
     save(); refresh();
-    toast("Loaded "+label);
+    toast("Loaded "+label+" as a new-semester copy"+(applied? " with "+applied+" approved CO change(s) applied" : ""));
   }
 });
 
