@@ -129,13 +129,14 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .vet-note{font-size:12px;margin:6px 0 8px;line-height:1.5}
 .vet-dots{height:24px;margin:0;border-bottom:1.5px dotted #444}   /* a full-width writing line */
 .vet-sign{font-size:13px;margin:10px 0 2px}
-.vet-map th{font-size:10px;line-height:1.25;vertical-align:bottom;padding:4px 3px}
-.vet-map td{padding:4px 3px}
-/* Section 7/8 mapping tables have 7-11 columns with long headers: fit the sheet instead of scrolling/clipping */
-.report-sheet .vet-map{table-layout:fixed;width:100%}
-.report-sheet .vet-map th,.report-sheet .vet-map td{overflow-wrap:break-word;word-break:normal}
-.report-sheet .vet-map th{font-size:9px !important}
-.report-sheet .vet-map td{font-size:10.5px !important}
+.vet-map th{font-size:9px;line-height:1.2;vertical-align:bottom;padding:3px 2px;text-align:center}
+.vet-map td{padding:3px 2px;font-size:10px}
+/* Fixed layout is what keeps these inside the page margin: with table-layout:auto a long header
+   sentence sets a minimum column width and Word widens the whole table past the paper. */
+.vet-fixed{table-layout:fixed;width:100%}
+.vet-fixed th,.vet-fixed td{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+.vet-grid th{font-size:9.5px;line-height:1.2;padding:3px 2px}
+.vet-grid td{font-size:10px;padding:3px 2px}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--primary-dark);color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;box-shadow:var(--shadow);opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
 .toast.show{opacity:1}
 /* CQI Section: full-width editable fields (the di/dta helpers are print-styled only inside .report-sheet) */
@@ -190,6 +191,8 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .keep-next{page-break-after:avoid;break-after:avoid}
 .keep-together{page-break-inside:avoid;break-inside:avoid}
 .pg-manual .vet-block,.pg-manual .keep-next,.pg-manual .keep-together,.pg-manual .vet-sec,.pg-manual .vet-part,.pg-manual .vet-note,.pg-manual h2,.pg-manual h3,.pg-manual .sig-table,.pg-manual .sig-notice{page-break-inside:auto !important;break-inside:auto !important;page-break-after:auto !important;break-after:auto !important;page-break-before:auto !important;break-before:auto !important}
+.pg-clone thead,.pg-clone thead tr{break-after:avoid;break-inside:avoid}   /* printing keeps a header row with the first body row; column layout would strand it */
+.pg-clone .tbl-wrap{overflow:visible !important}   /* a scroll container is unbreakable in column fragmentation, but splits fine when printed */
 .pg-clone{position:absolute;left:-30000px;top:0;visibility:hidden;pointer-events:none;box-sizing:content-box;padding:0 !important;margin:0;border:0;box-shadow:none;column-gap:0;column-fill:auto;overflow:visible}
 .report-sheet.pg-on{box-sizing:content-box;width:190mm;max-width:none;padding:0;margin:0 auto;border:1px solid #cbd5e1}
 .report-sheet.pg-on.pg-land{width:277mm}
@@ -307,7 +310,7 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
     </svg>
     <div>
       <h1>OBE Course Manager</h1>
-      <span class="sub">Teaching, Learning &amp; Assessment — Outcome-Based Education · <span id="verChip">v2.39</span></span>
+      <span class="sub">Teaching, Learning &amp; Assessment — Outcome-Based Education · <span id="verChip">v2.44</span></span>
     </div>
   </div>
   <div class="header-right">
@@ -349,14 +352,14 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
   <section class="tab" id="tab-about"></section>
 </main>
 
-<footer>OBE Course Manager <b>v2.39</b> (<a href="https://mazhar17.github.io/ocm/" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/ocm</a>) · runs fully in your browser · data stays on your device (or your own Google Drive, if you choose) · export backups regularly from <b>Data &amp; Backup</b>
+<footer>OBE Course Manager <b>v2.44</b> (<a href="https://mazhar17.github.io/ocm/" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/ocm</a>) · runs fully in your browser · data stays on your device (or your own Google Drive, if you choose) · export backups regularly from <b>Data &amp; Backup</b>
 <br>© 2026 Prof. Mazharul Islam (<a href="https://mazhar17.github.io/MI" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/MI</a>) · Distributed under the <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:var(--primary)">Creative Commons Attribution (CC BY) 4.0 International License</a></footer>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
 /* ============ Constants ============ */
-const APP_VERSION = "v2.39";
+const APP_VERSION = "v2.44";
 const APP_RELEASE = "July 13, 2026";
 const PO_INFO = {
   1:"Engineering Knowledge", 2:"Problem Analysis", 3:"Design/Development of Solutions",
@@ -1477,14 +1480,29 @@ function toggleFoldT(id){
   foldSet("tla","co:"+id, !foldOpenT(id));
   renderTLA();
 }
+/* Reaching a CQI card from elsewhere: switch Section first, then open and scroll to it. */
+function goCQI(id){ showTab("cqi"); setTimeout(()=>cqiJump(id), 40); }
 function cqiJump(id){
   const map={cqiA1:"s1",cqiA2:"s2",cqiA3:"s3",cqiA4:"s4",cqiA5:"s5",cqiA6:"s6"};
+  if(id==="cqiA0" && !foldIsOpen("cqi","cepGaps")){ foldSet("cqi","cepGaps",true); renderCQI(); }
   const k=map[id];
   if(k && !cqiFoldOpen(k)){ foldSet("cqi", k, true); renderCQI(); }
   const a=document.getElementById(id); if(a && a.scrollIntoView) a.scrollIntoView({behavior:"smooth",block:"start"});
 }
+/* The CQI Section reads as one long page on which everything looks equally due, when in truth it
+   splits in two: work that can be written while the course runs, and work that cannot exist until
+   marks are in. Saying so on each card is what stops people feeling lost in it. */
+function cqiWhen(kind){
+  const marksIn = (()=>{ const c=activeCourse(); if(!c) return false;
+    return Object.values(c.marks||{}).some(m=>Object.values(m||{}).some(v=>v!==""&&v!==undefined&&v!==null)); })();
+  if(kind==="during")
+    return `<span class="badge green" title="Nothing here depends on marks — write it while the course runs">During the semester</span>`;
+  return marksIn
+    ? `<span class="badge blue" title="Marks are entered, so the evidence this needs exists">After marks — ready</span>`
+    : `<span class="badge amber" title="This draws on attainment figures. Enter marks in Students &amp; Marks first, or it will be written without evidence.">After marks — none entered yet</span>`;
+}
 function cqiNavBar(){
-  const items=[["cqiA1","1 · Diagnose"],["cqiA2","2 · Narratives (3.8)"],["cqiA3","3–4 · Actions & Closure (5.4.3)"],["cqiA4","Stakeholders"],["cqiA5","Annexure H"],["cqiA6","Finish"]];
+  const items=[["cqiA0","Outcome & coverage checks"],["cqiA1","1 · Diagnose (attainment)"],["cqiA2","2 · Narratives (3.8)"],["cqiA3","3–4 · Closure & Actions (5.4.3)"],["cqiA4","Stakeholders"],["cqiA5","Annexure H"],["cqiA6","Finish"]];
   return `<div class="cqinav no-print"><span class="nav-lbl">Jump to</span>${items.map(([id,l])=>`<button onclick="cqiJump('${id}')">${l}</button>`).join("")}</div>`;
 }
 const V3_ONLY_SUBSECTS = ["sdg","sdgassess"];   /* the SDG requirement exists only in ACC-MAN-02 v3.0 */
@@ -1553,7 +1571,7 @@ function renderDashboard(){
     5: `Check the Biggs triangle and per-CO alignment cards; close gaps using the suggestions (one-click Adopt).`,
     6: `Add students or paste from Excel; enter marks in the grid or via CSV (Empty Template / Import / Export).`,
     7: `Direct CO/PO attainment is computed automatically (AUST method); add the Course Evaluation Survey for Indirect and the 80/20 (editable) Combined attainment.`,
-    8: `BAETE 3.8 &amp; 5.4.3 evidence, worked top to bottom: diagnose (low-attainment analysis), describe (3.8 narratives), decide (Report 6.1 actions), close (Specifications 6.1 closure) — each section has its own 📋 AI prompt in its heading; run them in that order. Also: stakeholder feedback register &amp; Annexure H checklist (incl. rubrics). Recording next semester's actions in Course Report 6.1 restarts the loop via “⟳ Duplicate for New Semester”. The full loop map is shown atop the CQI Section.`,
+    8: `BAETE 3.8 &amp; 5.4.3 evidence, worked top to bottom: diagnose (low-attainment analysis), describe (3.8 narratives), close (Specifications 6.1 — what the previous offering's actions changed), decide (Report 6.1 — actions for the next offering) — each section has its own 📋 AI prompt in its heading; run them in that order. Also: stakeholder feedback register &amp; Annexure H checklist (incl. rubrics). Recording next semester's actions in Course Report 6.1 restarts the loop via “⟳ Duplicate for New Semester”. The full loop map is shown atop the CQI Section.`,
     9: `Course Outline, Course Specifications, Final Exam Vetting Form, Direct CO-PO Calculations, Course Evaluation Survey, Course Report &amp; CQI Report — several key information are auto-filled and printable.`
   };
   const cqiStarted = !!(c.aust&&c.aust.cqi&&(c.aust.cqi.complex||c.aust.cqi.effective));
@@ -2039,6 +2057,7 @@ function renderCOs(){
   ${v22ConvertCard(c)}
   <div class="card">
     <h2>Course Outcomes (COs)</h2>
+    ${gapNotice(c,"wording")}
     <p class="hint">Write measurable CO statements using observable action verbs, choose the Bloom's Taxonomy (BT) Domain, and set the matching Level. A statement opening with a non-measurable verb (know, understand, appreciate, be aware of…) triggers a warning with observable alternatives. Edits save automatically.</p>
     <div class="btn-row no-print" style="margin:0 0 8px"><button class="btn secondary small" onclick="exportCourseCOs()" title="One row per CO — statement, PO, domain and level, WK/WP/EA and SDG numbers — the same columns as the Start from a Version 2.2 Course Outline template">⬇ Export CO table (CSV)</button></div>
     <div class="tbl-wrap"><table class="tbl">
@@ -3194,6 +3213,40 @@ function pullCQI(){
 /* ============ CA — Constructive Alignment (Biggs) ============ */
 function caColor(st){ return st==="green"? "#1e8e3e" : st==="amber"? "#e67e22" : st==="red"? "#c0392b" : "#9ab8b2"; }
 function caWord(st){ return st==="green"? "Aligned" : st==="amber"? "Partially aligned" : st==="red"? "Not aligned" : "No data"; }
+/* What CA finds is only useful if it leads somewhere. This card closes the Section by naming the
+   next step and linking straight to the CQI card that acts on each finding, rather than leaving
+   the teacher to work out where a misalignment is supposed to be recorded. */
+function caNextCard(c, data, leftAll, rightAll, baseAll){
+  const misaligned = data.filter(d=>d.tlaStatus!=="green" || d.assessStatus!=="green" || d.base!=="green");
+  const names = misaligned.map(d=>"CO"+(c.cos.findIndex(x=>x.id===d.co.id)+1));
+  const clean = !misaligned.length;
+  const marksIn = Object.values(c.marks||{}).some(m=>Object.values(m||{}).some(v=>v!==""&&v!==undefined&&v!==null));
+  const link = (id,label,why) => `<li style="margin:7px 0"><button class="btn secondary small" onclick="goCQI('${id}')">${label} →</button> <span style="font-size:12.5px">${why}</span></li>`;
+  return `
+  <div class="card no-print" style="border-left:3px solid var(--primary)">
+    <h2>What to do with what this Section found</h2>
+    <p class="hint">Nothing is entered here, so a finding only becomes evidence once it is written down in the CQI Section. These links open the exact card that records each kind of finding.</p>
+    ${gapNotice(c,"coverage")}
+    ${clean
+      ? `<p style="font-size:13px;color:var(--ok);margin:8px 0"><b>✓ Every CO is aligned on all three edges.</b> That is itself worth stating — the narratives below are where an evaluation team reads how the alignment was achieved.</p>`
+      : `<p style="font-size:13px;margin:8px 0"><b>${misaligned.length} outcome${misaligned.length>1?"s are":" is"} not fully aligned:</b> ${esc(names.join(", "))}. Each needs either a correction now (in T&amp;L or Assessments) or a recorded action for the next offering.</p>`}
+    <ul style="margin:6px 0 0;padding-left:18px">
+      ${link("cqiA0","Outcome quality &amp; coverage checks",
+        "Wording and complex-attribute coverage. Needs no marks — run it as early as you like.")}
+      ${link("cqiA2","BAETE 3.8 — narratives",
+        "Describe how teaching-learning methods and assessment tools are chosen and moderated. Writable now — only the effectiveness paragraph needs marks.")}
+      ${link("cqiA3","Specifications 6.1 — close the previous loop",
+        "Record what the <i>previous</i> offering's recommendations actually changed here. No marks needed.")}
+      ${link("cqiA1","Low-attainment analysis",
+        marksIn? "Marks are in — diagnose each CO below target before writing actions."
+               : "Needs marks. Enter them in Students &amp; Marks first.")}
+      ${link("cqiA3","Course Report 6.1 — actions for the next offering",
+        clean? "Even a well-aligned course records what it will keep doing and why."
+             : "Carry "+esc(names.join(", "))+" here as explicit actions, so the next offering can be shown to have closed them.")}
+    </ul>
+    <p class="hint" style="margin-top:10px">A misalignment you can fix today belongs in <b>T&amp;L</b> or <b>Assessments</b>, not in an action for next semester — an action is for what cannot be changed mid-offering.</p>
+  </div>`;
+}
 function caWorst(list){
   if(!list.length) return "grey";
   if(list.includes("red")) return "red";
@@ -3420,7 +3473,8 @@ function renderCA(){
       KSA = Knowledge, Skills, Attitudes · <span class="badge green">Aligned</span> <span class="badge amber">Partially aligned</span> <span class="badge red">Not aligned</span> · Activity chips: <span class="badge green">verified fit</span> <span class="badge amber">level mismatch</span> <span class="badge grey">unverified free-text</span> · Items: † choice question, ↑ exceeds CO level
     </p>
   </div>
-  ${cards}`;
+  ${cards}
+  ${caNextCard(c, data, leftAll, rightAll, baseAll)}`;
 }
 
 /* ============ Assessments ============ */
@@ -6498,12 +6552,31 @@ function addGapAction(key){
   c.aust.report.cqi[i] = cur? cur+"\n\n"+g.action : g.action;
   save(); renderCQI(); toast("Added to Improvement actions (Report 6.1, row A — Direct Measurement)");
 }
+/* The findings below need no marks: they exist as soon as the outcomes are written and the
+   assessment plan is tagged. Discovered in week 1 a non-observable verb can go to the committee
+   before teaching; discovered in the CQI Section at the end of the semester it can only become
+   next year's action. So the count is surfaced where it is cheap to act on, and links through to
+   the full card — which stays in CQI, because the remedies there are CQI instruments. */
+function gapNotice(c, cat){
+  const all = cepGaps(c);
+  const g = cat? all.filter(x=> cat==="wording"? x.cat==="wording" : x.cat!=="wording") : all;
+  if(!g.length) return "";
+  const what = cat==="wording"
+    ? `${g.length} course outcome${g.length>1?"s open":" opens"} with a verb that cannot be observed`
+    : `${g.length} complex-engineering coverage finding${g.length>1?"s":""}`;
+  const why = cat==="wording"
+    ? `A Course Outcome is approved wording, so OCM never edits it — but a revision taken to the Specialization Committee <b>now</b> costs far less than an action recorded next October.`
+    : `What the assessment items actually exercise does not match what the approved §14 claims.`;
+  return `<div class="no-print" style="background:#fff8e6;border-left:3px solid var(--warn);padding:9px 12px;border-radius:6px;margin:0 0 12px">
+    <p style="margin:0;font-size:12.5px"><b>⚠ ${what}.</b> ${why}
+    <button class="btn secondary small" style="margin-left:6px" onclick="goCQI('cqiA0')">Review in CQI →</button></p></div>`;
+}
 function cqiGapsCard(c){
   const gaps=cepGaps(c);
   const dw=attrDef(c,'wp'), de=attrDef(c,'ea');
   if(!foldOpenM('cepGaps')) return `
   <div class="card folded">
-    <h2 class="cqi-fold" onclick="foldClickM(event,'cepGaps','cqi')"><span class="fold-caret">&#9656;</span> Outcome Quality &amp; Coverage Gaps ${gaps.length? `<span class="badge amber">${gaps.length} finding(s)</span>`:'<span class="badge green">none</span>'}</h2>
+    <h2 class="cqi-fold" onclick="foldClickM(event,'cepGaps','cqi')"><span class="fold-caret">&#9656;</span> Outcome Quality &amp; Coverage Gaps ${cqiWhen("during")} ${gaps.length? `<span class="badge amber">${gaps.length} finding(s)</span>`:'<span class="badge green">none</span>'}</h2>
     <p class="fold-sum">${gaps.length? `${gaps.length} finding(s) — outcome wording and ${dw.pre}/${de.pre} coverage — click to review and add to the action plan.` : `CO wording is observable, and item-level ${dw.pre}/${de.pre} evidence matches the §14 claims.`}</p>
   </div>`;
   const rowsOf = list => list.map(g=>`
@@ -6525,7 +6598,7 @@ function cqiGapsCard(c){
              + block("Complex-engineering coverage", coverage, "What the assessment items actually exercise, compared with what the approved §14 claims.");
   return `
   <div class="card">
-    <h2 class="cqi-fold" onclick="foldClickM(event,'cepGaps','cqi')"><span class="fold-caret">&#9662;</span> Outcome Quality &amp; Coverage Gaps ${gaps.length? `<span class="badge amber">${gaps.length} finding(s)</span>`:'<span class="badge green">none</span>'}</h2>
+    <h2 class="cqi-fold" onclick="foldClickM(event,'cepGaps','cqi')"><span class="fold-caret">&#9662;</span> Outcome Quality &amp; Coverage Gaps ${cqiWhen("during")} ${gaps.length? `<span class="badge amber">${gaps.length} finding(s)</span>`:'<span class="badge green">none</span>'}</h2>
     <p class="hint">A deficiency found here is not a failure — it is exactly the kind of finding the CQI loop exists to close. This card reviews the wording of your approved Course Outcomes and compares what your assessment items actually exercise (${dw.pre}/${de.pre} item tags, audit forms, open-ended labs) with what the approved Course Outline §14 claims, and proposes wording you can carry into the next offering. The app suggests; whether a task is genuinely complex engineering remains your judgement, and the approved outline is never edited automatically.</p>
     ${gaps.length? rows
     : `<p class="hint"><span class="badge green">No findings</span> Every CO statement opens with an observable verb, and every ${dw.pre}/${de.pre} attribute evidenced by your assessment items is also claimed in §14.</p>`}
@@ -6575,15 +6648,16 @@ function renderCQI(){
   </div>
   <div class="card">
     <h2>Continuous Quality Improvement (CQI)</h2>
-    <p class="hint">This Section consolidates the evidence BAETE asks for under <b>Criterion 3.8</b> (teaching-learning &amp; assessment) and <b>Criterion 5.4.3</b> (CQI loop for courses and curriculum). <b>Work top to bottom: diagnose (Low Attainment Analysis) → describe (3.8 narratives) → decide (Report 6.1 actions) → close (Specifications 6.1 closure)</b> — each section carries its own 📋 AI prompt in its heading; run them in that order, pasting each result back before running the next (later prompts include what you have already entered, the diagnosis also feeds the Suggested Modifications prompts in the T&amp;L and Assessments Sections, and the closure prompt can be run any time once implementations begin). The 6.1 action tables in the 5.4.3 card are <b>⛓ the same data</b> as Course Report 6.1 and Course Specifications 6.1 — editing here updates the documents and vice versa. When everything is complete, print the CQI Report from the bottom of this Section.</p>
+    <p class="hint">This Section consolidates the evidence BAETE asks for under <b>Criterion 3.8</b> (teaching-learning &amp; assessment) and <b>Criterion 5.4.3</b> (CQI loop for courses and curriculum). <b>Work top to bottom: check (outcome wording &amp; coverage — no marks needed) → diagnose (Low Attainment Analysis) → describe (3.8 narratives) → close (Specifications 6.1 — what the previous offering changed) → decide (Report 6.1 — actions for the next offering)</b> — each section carries its own 📋 AI prompt in its heading; run them in that order, pasting each result back before running the next (later prompts include what you have already entered, the diagnosis also feeds the Suggested Modifications prompts in the T&amp;L and Assessments Sections, and the closure prompt can be run any time once implementations begin). The 6.1 action tables in the 5.4.3 card are <b>⛓ the same data</b> as Course Report 6.1 and Course Specifications 6.1 — editing here updates the documents and vice versa. When everything is complete, print the CQI Report from the bottom of this Section.</p>
   </div>
   ${cqiNavBar()}
+  <div id="cqiA0"></div>
+  ${cqiGapsCard(c)}
   <div id="cqiA1"></div>
   ${lowAttainmentCard(c)}
-  ${cqiGapsCard(c)}
   <div id="cqiA2"></div>
   <div class="${foldCls('s2')}">
-    <h2 class="cqi-fold" onclick="cqiFoldClick(event,'s2')">${foldCaret('s2')}BAETE 3.8 — Teaching-Learning Methods &amp; Assessment Tools</h2>
+    <h2 class="cqi-fold" onclick="cqiFoldClick(event,'s2')">${foldCaret('s2')}BAETE 3.8 — Teaching-Learning Methods &amp; Assessment Tools ${cqiWhen("during")}</h2>
     <p class="fold-sum">${fsum.s2}</p>
     <p class="hint">The table is compiled automatically from your COs, adopted T&amp;L activities, and assessment plan. CP/CEA come from the Knowledge-Profile mapping in the Course Outline (item 14).</p>
     <div class="tbl-wrap"><table class="tbl">
@@ -6606,6 +6680,7 @@ function renderCQI(){
   <div id="cqiA3"></div>
   <div class="${foldCls('s3')}">
     <h2 class="cqi-fold" onclick="cqiFoldClick(event,'s3')">${foldCaret('s3')}BAETE 5.4.3 — CQI Loop Status for This Course</h2>
+    <p class="hint" style="margin:-2px 0 10px">Two tables, in the order the semester runs them: first what the <b>previous</b> offering's recommendations changed here (Course Specifications 6.1 — writable as soon as you begin implementing, no marks needed), then the actions this offering recommends for the <b>next</b> one (Course Report 6.1 — drawn from the attainment evidence above).</p>
     <p class="fold-sum">${fsum.s3}</p>
     <div class="tbl-wrap"><table class="tbl"><tbody>
       <tr><td>1. Measure — direct assessment (marks entered)</td><td>${okBadge(stat.direct,"marks recorded","enter marks in Students & Marks")}</td></tr>
@@ -6615,11 +6690,7 @@ function renderCQI(){
       <tr><td>5. Close — actions reflected in the next offering (Course Specifications 6.1)</td><td>${okBadge(stat.reflected,"loop closed","use ⟳ Duplicate for New Semester, or fill below")}</td></tr>
       <tr><td>6. Stakeholder feedback utilised</td><td>${okBadge(stat.stakeholders,"register maintained","add entries to the register below")}</td></tr>
     </tbody></table></div>
-    <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Improvement actions from this offering <span class="badge blue" title="Same data as Course Report 6.1 — edit in either place">⛓ linked — same data as Course Report 6.1</span> <button class="btn secondary small" title="Copies a curated prompt that drafts ONLY the five action rows below — forward-looking recommendations for the NEXT offering, derived from this offering's evidence. It embeds your pasted analyses, narratives and working notes, so run Steps 1-2 first. Step 3 of 4." onclick="copyReportActionsPrompt()">📋 Copy AI Prompt (Report 6.1 actions)</button></h3>
-    <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th style="width:140px">Loop</th><th style="width:190px">Assessment Type</th><th>Recommended Actions for Quality Improvement</th></tr></thead>
-      <tbody>${repRows}</tbody></table></div>
-    <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Actions from the previous offering &amp; how they were reflected <span class="badge blue" title="Same data as Course Specifications 6.1 — edit in either place">⛓ linked — same data as Course Specifications 6.1</span> <button class="btn secondary small" title="Copies a curated prompt that drafts ONLY the 'how they were reflected' column below — backward-looking: it closes the PREVIOUS offering's loop from your working notes, adopted activities and assessment plan. Runnable any time once implementations begin (it does not need marks). Step 4 of 4." onclick="copyClosurePrompt()">📋 Copy AI Prompt (Spec 6.1 closure)</button></h3>
+    <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Actions from the previous offering &amp; how they were reflected <span class="badge blue" title="Same data as Course Specifications 6.1 — edit in either place">⛓ linked — same data as Course Specifications 6.1</span> <button class="btn secondary small" title="Copies a curated prompt that drafts ONLY the 'how they were reflected' column below — backward-looking: it closes the PREVIOUS offering's loop from your working notes, adopted activities and assessment plan. Runnable any time once implementations begin (it does not need marks). Step 3 of 4." onclick="copyClosurePrompt()">📋 Copy AI Prompt (Spec 6.1 closure)</button></h3>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th style="width:140px">Loop</th><th style="width:190px">Assessment Type</th><th>Recommended Actions (previous Course Report)</th><th>Reflected in the Current Course Specification</th></tr></thead>
       <tbody>${specRows}</tbody></table></div>
@@ -6627,7 +6698,11 @@ function renderCQI(){
       <button class="btn secondary small" onclick="pullCQI()">⟳ Pull CQI actions from Course Report into Specifications 6.1</button>
     </div>
   </div>
-  <div id="cqiA4"></div>
+      <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Improvement actions from this offering <span class="badge blue" title="Same data as Course Report 6.1 — edit in either place">⛓ linked — same data as Course Report 6.1</span> <button class="btn secondary small" title="Copies a curated prompt that drafts ONLY the five action rows below — forward-looking recommendations for the NEXT offering, derived from this offering's evidence. It embeds your pasted analyses, narratives and working notes, so run Steps 1-2 first. Step 4 of 4." onclick="copyReportActionsPrompt()">📋 Copy AI Prompt (Report 6.1 actions)</button></h3>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th style="width:140px">Loop</th><th style="width:190px">Assessment Type</th><th>Recommended Actions for Quality Improvement</th></tr></thead>
+      <tbody>${repRows}</tbody></table></div>
+<div id="cqiA4"></div>
   <div class="${foldCls('s4')}">
     <h2 class="cqi-fold" onclick="cqiFoldClick(event,'s4')">${foldCaret('s4')}Stakeholder Feedback Register</h2>
     <p class="fold-sum">${fsum.s4}</p>
@@ -6787,7 +6862,7 @@ function lowAttainmentCard(c){
   const data = studentCOData(c).filter(d=>d.totalMax>0 && d.scores.length);
   if(!data.length) return `
   <div class="card">
-    <h2>Low Attainment Analysis <span class="badge blue">linked to Attainment</span></h2>
+    <h2>Low Attainment Analysis <span class="badge blue">linked to Attainment</span> ${cqiWhen("after")}</h2>
     <p class="hint">Enter assessment items and marks first (Assessments / Students &amp; Marks) — then low-scoring students can be filtered and analyzed here.</p>
   </div>`;
   const blocks = data.map(d=>{
@@ -6829,7 +6904,7 @@ function lowAttainmentCard(c){
   }).join("");
   return `
   <div class="${foldCls('s1')}">
-    <h2 class="cqi-fold" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap" onclick="cqiFoldClick(event,'s1')">${foldCaret('s1')}Low Attainment Analysis <span class="badge blue">linked to Attainment</span> <button class="btn secondary small" onclick="copyLowAttPrompt()" title="Builds a tiered prompt: full diagnosis for the not-attained CO(s), brief preventive notes for attained-but-borderline CO(s) (below KPI + 15 points, or carrying a weak item), and an explicit no-action line for strongly attained ones — tasks matching the (a)/(b)/(c) boxes below. Step 1 of 4: run first. The pasted analyses feed the 3.8 narratives prompt (Step 2), the Report 6.1 actions prompt (Step 3), and the Suggested Modifications prompts in the T&L and Assessments Sections.">📋 Copy AI Prompt (low-attainment analysis)</button></h2>
+    <h2 class="cqi-fold" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap" onclick="cqiFoldClick(event,'s1')">${foldCaret('s1')}Low Attainment Analysis <span class="badge blue">linked to Attainment</span> ${cqiWhen("after")} <button class="btn secondary small" onclick="copyLowAttPrompt()" title="Builds a tiered prompt: full diagnosis for the not-attained CO(s), brief preventive notes for attained-but-borderline CO(s) (below KPI + 15 points, or carrying a weak item), and an explicit no-action line for strongly attained ones — tasks matching the (a)/(b)/(c) boxes below. Step 1 of 4: run first. The pasted analyses feed the 3.8 narratives prompt (Step 2), the Report 6.1 actions prompt (Step 4), and the Suggested Modifications prompts in the T&L and Assessments Sections.">📋 Copy AI Prompt (low-attainment analysis)</button></h2>
     <p class="fold-sum">${cqiFoldSums(c).s1}</p>
     <p class="hint">Students are filtered by their per-CO score (same calculation as the Attainment Section). For each CO, analyze the causes with respect to (a) the teaching-learning activities and (b) the assessment techniques, and record your comment — these feed the printable CQI Report, support Course Report 6.1, and flow into the later AI prompts: the (a) findings into the T&amp;L Section's Suggested Modifications prompt, the (b) findings into the Assessments Section's, and all of them into the 3.8 narratives and Report 6.1 actions prompts.</p>
     <label class="fld" style="max-width:340px;margin-bottom:8px">Filter: students scoring below (%)
@@ -6912,6 +6987,10 @@ function coTa(id, field, val, ph){ return `<textarea class="di" rows="1" style="
 function coSel(id, field, val, list){
   return `<select class="di" onchange="updateCO('${id}','${field}',this.value)"><option value="">—</option>${list.map(b=>`<option ${val===b?"selected":""}>${b}</option>`).join("")}</select>`;
 }
+/* A raster copy of the same logo, embedded. The SVG above is a RELATIVE path: it resolves
+   while the app is being served, but an exported .doc opened from elsewhere cannot find it,
+   and Word does not render SVG from imported HTML in any case. The export substitutes this. */
+const AUST_LOGO_PNG = "data:image/png;base64,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";
 const AUST_LOGO = "aust_logo.svg"; /* official AUST logo served from the same folder/repository; the header img hides gracefully if the file is absent. Legacy inline data retained in this comment: PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB2aWV3Qm94PSIwIDAgNDE1IDQ5NC4zIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA0MTUgNDk0LjM7IiB4bWw6c3BhY2U9InByZXNlcnZlIj48c3R5bGUgdHlwZT0idGV4dC9jc3MiPiAuc3Qwe2ZpbGw6I0ZGRkZGRjt9IC5zdDF7ZmlsbDojMjMxRjIwO30gLnN0MntmaWxsOiMxNjgxNDE7fSAuc3Qze2ZpbGw6I0QyNzUyODt9IDwvc3R5bGU+PGcgaWQ9Il9Hcm91cF8iPjxnIGlkPSJfR3JvdXBfMiI+PHBvbHlnb24gaWQ9Il9QYXRoXyIgY2xhc3M9InN0MCIgcG9pbnRzPSI0MTEuOCwzODMuNiA0MTEuOCwzLjIgMy4yLDMuMiAzLjIsMzgzLjYgMTI0LjgsNDkxLjEgMjkxLjUsNDkxLjEgIi8+PC9nPjxnIGlkPSJfR3JvdXBfMyI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXyIgY2xhc3M9InN0MSIgZD0iTTI5Mi44LDQ5NC4zSDEyMy42TDAsMzg1VjBoNDE1djM4NUwyOTIuOCw0OTQuM3ogTTEyNi4xLDQ4OGgxNjQuMmwxMTguMi0xMDUuN1Y2LjNINi41IHYzNzUuOUwxMjYuMSw0ODh6Ii8+PC9nPjwvZz48ZyBpZD0iX0dyb3VwXzQiPjxnIGlkPSJfR3JvdXBfNSI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzIiIGNsYXNzPSJzdDEiIGQ9Ik02My45LDExNS45bDE4LjQsMjMuNkg0NS41TDYzLjksMTE1Ljl6IE0zMiwxNTYuN2w4LjctMTEuM0g4N2w4LjcsMTEuM2gxMi41bC0zOC00Ni4xIEg1OC4xbC0zNy4zLDQ2LjFIMzJ6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfNiI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzMiIGNsYXNzPSJzdDEiIGQ9Ik0xMzYuNCwxMTAuNnYzOS43aDQ5Ljd2LTM5LjdoMTEuNHYzNS4yYzAsNC4yLTEuMSw3LjEtMy40LDguNnMtNi40LDIuMy0xMi43LDIuM0gxNDEgYy02LjIsMC0xMC40LTAuOC0xMi42LTIuM2MtMi4yLTEuNS0zLjMtNC40LTMuNC04LjZ2LTM1LjNIMTM2LjRMMTM2LjQsMTEwLjZ6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfNyI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzQiIGNsYXNzPSJzdDEiIGQ9Ik0yOTEuMiwxMTYuOEgyNDN2MTNoNDIuOWM2LjEsMCwxMC4zLDAuOCwxMi42LDIuM3MzLjQsNC4zLDMuNCw4LjV2NS4yIGMwLDQuMi0xLjEsNy4xLTMuMyw4LjZjLTIuMiwxLjUtNi41LDIuMy0xMi43LDIuM2gtMzkuOGMtNi4yLDAtMTAuNC0wLjgtMTIuNy0yLjNjLTIuMi0xLjUtMy40LTQuNC0zLjQtOC42di0xLjNsMTAuNS0xLjd2Ny41aDUxIHYtMTMuOWgtNDNjLTYuMiwwLTEwLjUtMC44LTEyLjYtMi4zcy0zLjMtNC40LTMuMy04LjZ2LTRjMC00LjIsMS4xLTcuMSwzLjMtOC42YzIuMi0xLjUsNi40LTIuMywxMi42LTIuM2gzNi4zIGM2LjEsMCwxMC4zLDAuOCwxMi42LDIuMnMzLjUsNC4xLDMuNSw3Ljl2MWwtOS45LDEuOUwyOTEuMiwxMTYuOEwyOTEuMiwxMTYuOHoiLz48L2c+PGcgaWQ9Il9Hcm91cF84Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfNSIgY2xhc3M9InN0MSIgZD0iTTM2Mi45LDExNi44djM5LjloLTExLjN2LTM5LjloLTMxLjN2LTYuMmg3NHY2LjJIMzYyLjl6Ii8+PC9nPjwvZz48ZyBpZD0iX0dyb3VwXzkiPjxwYXRoIGlkPSJfUGF0aF8yIiBjbGFzcz0ic3QyIiBkPSJNMTguOCw3Ny40djE5LjhoMzc3LjRWNzcuNGMwLDAtODcuNS0wLjUtMTY0LjgtNTkuNWgtNTBDMTgxLjQsMTgsMTIwLjMsNzcuNCwxOC44LDc3LjR6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfMTAiPjxnIGlkPSJfR3JvdXBfMTEiPjxwb2x5Z29uIGlkPSJfUGF0aF8zIiBjbGFzcz0ic3QyIiBwb2ludHM9IjExNC40LDE4OC4yIDExNC40LDM0NC42IDE5OC4zLDMyMy45IDE5OC4zLDIxMC43ICIvPjwvZz48ZyBpZD0iX0dyb3VwXzEyIj48cG9seWdvbiBpZD0iX1BhdGhfNCIgY2xhc3M9InN0MiIgcG9pbnRzPSIzMDAuNiwxODguMiAzMDAuNiwzNDQuNiAyMTYuNywzMjMuOSAyMTYuNywyMTAuNyAiLz48L2c+PC9nPjxnIGlkPSJfR3JvdXBfMTMiPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF82IiBjbGFzcz0ic3QzIiBkPSJNMjgxLjIsNDc1LjVIMTMzLjhsLTAuNC0wLjRMMjEuOSwzNzguNHYtMC43bDAuMy0xOTFoNzd2MTYxLjZsNjMuNSw1NS4yaDg2LjQgbDY0LjEtNTUuNlYxODYuOGg3OS45djE5MS42bC0wLjUsMC40TDI4MS4yLDQ3NS41eiBNMTM1LDQ3Mi41aDE0NS4xbDExMC05NS41VjE4OS43aC03My45djE1OS41bC02Niw1Ny4zaC04OC42bC0wLjQtMC40bC02NS01Ni40IFYxODkuN0gyNS4ybC0wLjMsMTg3LjRMMTM1LDQ3Mi41eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzE0Ij48ZyBpZD0iX0dyb3VwXzE1Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfNyIgY2xhc3M9InN0MSIgZD0iTTE3NS45LDM2OS4yaC01LjhWMzUzYy0yLjMsMS41LTQuOSwyLjYtNy42LDMuM3YtMy45YzEuOC0wLjUsMy40LTEuMiw1LTIuMSBjMS42LTAuOCwyLjgtMiwzLjctMy42aDQuOEwxNzUuOSwzNjkuMkwxNzUuOSwzNjkuMnoiLz48L2c+PGcgaWQ9Il9Hcm91cF8xNiI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzgiIGNsYXNzPSJzdDEiIGQ9Ik0xOTYuNywzNTcuNWMtMS43LDEuMy00LDEuMy01LjcsMGMtMC44LTAuOC0xLjMtMi0xLjItMy4yYy0wLjMtMS45LDEuMS0zLjcsMy00IGMwLjMsMCwwLjUsMCwwLjgsMGMxLjEsMCwyLjIsMC40LDMsMS4xYzAuOSwwLjgsMS40LDIsMS4zLDMuMkMxOTgsMzU1LjcsMTk3LjUsMzU2LjgsMTk2LjcsMzU3LjV6IE0xODcuNiwzNjguMiBjMS43LDEsMy43LDEuNSw1LjcsMS40YzIuOSwwLjEsNS44LTAuOCw4LTIuN2MyLjEtMS44LDMuMS00LjgsMy4xLTguOWMwLTQtMS02LjktMy04LjdjLTIuMS0xLjgtNC44LTIuNy03LjYtMi42IGMtMi41LTAuMS01LDAuNi03LDIuMWMtMS44LDEuMy0yLjgsMy4zLTIuNyw1LjVjMCwyLjEsMC45LDQuMSwyLjYsNS4zYzEuOCwxLjQsMy45LDIuMSw2LjIsMmMyLDAuMSw0LTAuNiw1LjUtMS45IGMtMC4yLDIuNi0wLjgsNC4zLTEuNiw1LjFjLTAuOCwwLjgtMS45LDEuMi0zLDEuMmMtMC44LDAtMS42LTAuMi0yLjMtMC42Yy0wLjYtMC40LTEtMS4xLTEuMS0xLjlsLTUuNiwwLjUgQzE4NS4xLDM2NS43LDE4Ni4xLDM2Ny4zLDE4Ny42LDM2OC4yTDE4Ny42LDM2OC4yeiIvPjwvZz48ZyBpZD0iX0dyb3VwXzE3Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfOSIgY2xhc3M9InN0MSIgZD0iTTIyMC40LDM1Ny41Yy0xLjcsMS4zLTQsMS4zLTUuNywwYy0wLjgtMC44LTEuMy0yLTEuMi0zLjJjLTAuMy0xLjksMS4xLTMuNywzLTQgYzAuMiwwLDAuNSwwLDAuOCwwYzEuMSwwLDIuMiwwLjQsMywxLjFjMC45LDAuOCwxLjQsMiwxLjMsMy4yQzIyMS42LDM1NS43LDIyMS4yLDM1Ni44LDIyMC40LDM1Ny41eiBNMjExLjMsMzY4LjIgYzEuNywxLDMuNywxLjUsNS43LDEuNGMyLjksMC4xLDUuOC0wLjgsOC0yLjdjMi0xLjgsMy4xLTQuOCwzLjEtOC45YzAtNC0xLTYuOS0zLTguN2MtMi4xLTEuOC00LjgtMi43LTcuNi0yLjYgYy0yLjUtMC4xLTUsMC42LTcsMi4xYy0xLjgsMS4zLTIuOCwzLjMtMi44LDUuNWMwLDIuMSwwLjksNC4xLDIuNiw1LjNjMS44LDEuNCwzLjksMi4xLDYuMiwyYzIsMC4xLDQtMC42LDUuNS0xLjkgYy0wLjIsMi42LTAuOCw0LjMtMS42LDUuMWMtMC44LDAuOC0xLjksMS4yLTMsMS4yYy0wLjgsMC0xLjYtMC4yLTIuMy0wLjZjLTAuNi0wLjQtMS0xLjEtMS4xLTEuOWwtNS42LDAuNSBDMjA4LjcsMzY1LjcsMjA5LjgsMzY3LjMsMjExLjMsMzY4LjJMMjExLjMsMzY4LjJ6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfMTgiPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF8xMCIgY2xhc3M9InN0MSIgZD0iTTIzMiwzNjMuNWw1LjgtMC40YzAuMSwwLjksMC43LDEuOCwxLjUsMi4zYzAuOCwwLjYsMS44LDAuOSwyLjgsMC44IGMxLjEsMCwyLjItMC40LDMuMS0xLjFjMC45LTAuOSwxLjMtMi4xLDEuMy0zLjNjMC4xLTEuMi0wLjQtMi4zLTEuMy0zLjFjLTAuOS0wLjctMi4xLTEuMS0zLjMtMWMtMS42LDAtMy4yLDAuNi00LjUsMS42bC00LjctMC41IGwzLTExLjdoMTUuNHY0aC0xMWwtMC45LDMuOGMxLjMtMC41LDIuNi0wLjcsNC0wLjdjMi40LTAuMSw0LjcsMC43LDYuNiwyLjFjMS43LDEuMiwyLjcsMy4zLDIuNyw1LjRjMCwxLjktMC44LDMuNy0yLjIsNC45IGMtMiwyLTQuNywzLTguMywzYy0yLjQsMC4xLTQuOC0wLjUtNi45LTEuNkMyMzMuNSwzNjcuMSwyMzIuMywzNjUuNCwyMzIsMzYzLjV6Ii8+PC9nPjwvZz48ZyBpZD0iX0dyb3VwXzE5Ij48ZyBpZD0iX0dyb3VwXzIwIj48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMTEiIGNsYXNzPSJzdDEiIGQ9Ik01NC44LDIwNS45bDkuMywyLjFsLTkuMywyLjFWMjA1LjlMNTQuOCwyMDUuOXogTTQ0LjksMjE1LjdsMjUuMS02LjF2LTMuMybC0yNS4xLTUuOSB2My4zbDUuNywxLjN2Ni4xbC01LjcsMS4zVjIxNS43eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzIxIj48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMTIiIGNsYXNzPSJzdDEiIGQ9Ik02OS45LDIxNy4zdjMuMWgtOS45djZoOS45djMuMUg0NC45di0zLjFoMTF2LTZoLTExdi0zLjFINjkuOXoiLz48L2c+PGcgaWQ9Il9Hcm91cF8yMiI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzEzIiBjbGFzcz0ic3QxIiBkPSJNNTMuNSwyMzVjLTEuMywwLjEtNC44LDAuNS00LjgsMy4zYzAsMi4xLDEuOSwzLDMuNSwzYzIuMSwwLDIuNi0xLjEsMy43LTMuOSBjMC42LTEuNSwyLTQuOSw3LjUtNC45YzIuNywwLDcsMS4xLDcsNS41YzAsMy0xLjksNS43LTcuNiw1LjhsLTAuMi0zLjFjMS4zLTAuMSwzLjYtMC40LDMuNi0yLjhjMC4xLTEuMy0wLjktMi41LTIuMi0yLjYgYy0wLjEsMC0wLjIsMC0wLjMsMGMtMS42LDAtMi4zLDEtMy4zLDMuNHMtMi4xLDUuNS04LjMsNS41Yy0zLDAtNS42LTEuMi02LjYtMi41Yy0wLjgtMS0xLjItMi4zLTEuMS0zLjZjMC0xLjYsMC4zLTUuNyw4LjYtNi4zIEw1My41LDIzNXoiLz48L2c+PGcgaWQ9Il9Hcm91cF8yMyI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzE0IiBjbGFzcz0ic3QxIiBkPSJNNTQuOCwyNTAuN2w5LjMsMi4xbC05LjMsMi4xVjI1MC43eiBNNDQuOSwyNjAuNWwyNS4xLTYuMXYtMy4ybC0yNS4xLTUuOXYzLjMgbDUuNywxLjN2Ni4xbC01LjcsMS4zTDQ0LjksMjYwLjVMNDQuOSwyNjAuNXoiLz48L2c+PGcgaWQ9Il9Hcm91cF8yNCI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzE1IiBjbGFzcz0ic3QxIiBkPSJNNjkuOSwyNjIuMnYzbC0xNi43LDYuMmwwLDBoMTYuN3YyLjlINDQuOXYtMy4xbDE2LjQtNi4xbDAsMEg0NC45di0yLjhMNjkuOSwyNjIuMiBMNjkuOSwyNjIuMnoiLz48L2c+PGcgaWQ9Il9Hcm91cF8yNSI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzE2IiBjbGFzcz0ic3QxIiBkPSJNNjkuOSwyODAuNkg1Ni40Yy0zLDAtNC4yLDAtNS40LDAuNGMtMS4zLDAuMy0yLjIsMS40LTIuMiwyLjdjMCwyLjksMywyLjksNy4zLDIuOSBoMTMuOHYzSDU2LjhjLTQuNSwwLTctMC4xLTguOS0wLjhjLTIuMi0wLjctMy42LTIuOC0zLjUtNS4xYzAtNi4yLDYuMy02LjIsMTIuMS02LjJINzBMNjkuOSwyODAuNkw2OS45LDI4MC42eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzI2Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMTciIGNsYXNzPSJzdDEiIGQ9Ik02OS45LDI5Mi44djMuMUg0OS4xdjcuNmgtNC4ydi0xMC43SDY5Ljl6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfMjciPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF8xOCIgY2xhc3M9InN0MSIgZD0iTTY5LjksMzA1Ljh2My4xSDQ5LjF2Ny42aC00LjJ2LTEwLjdINjkuOXoiLz48L2c+PGcgaWQ9Il9Hcm91cF8yOCI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzE5IiBjbGFzcz0ic3QxIiBkPSJNNTQuOCwzMjIuN2w5LjMsMi4xbC05LjMsMi4xVjMyMi43eiBNNDQuOSwzMzIuNWwyNS4xLTYuMXYtMy4ybC0yNS4xLTUuOXYzLjMgbDUuNywxLjN2Ni4xbC01LjcsMS4zTDQ0LjksMzMyLjVMNDQuOSwzMzIuNXoiLz48L2c+PGcgaWQ9Il9Hcm91cF8yOSI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzIwIiBjbGFzcz0ic3QxIiBkPSJNNjkuOSwzMzQuMXYzLjFoLTkuOXY2aDkuOXYzLjFINDQuOXYtMy4xaDExdi02aC0xMXYtMy4xSDY5Ljl6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfMzAiPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF8yMSIgY2xhc3M9InN0MSIgZD0iTTY3LjUsMzU4LjlsLTkuNiw4LjNjLTIuMSwxLjgtMywyLjYtMy41LDMuNmMtMC43LDEuMS0wLjQsMi41LDAuNywzLjMgYzIuNSwyLjEsNC42LDAuMyw3LjYtMi40bDkuOC04LjVsMi42LDIuMmwtOS4zLDhjLTMuMiwyLjctNSw0LjItNyw0LjhjLTIuMywwLjgtNC45LDAuMi02LjctMS41Yy01LjItNC41LTAuNy04LjQsMy40LTExLjkgbDkuNS04LjJMNjcuNSwzNTguOXoiLz48L2c+PGcgaWQ9Il9Hcm91cF8zMSI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzIyIiBjbGFzcz0ic3QxIiBkPSJNNzcuOCwzNjcuOGwyLjUsMi4ybC02LjYsMTQuOGwwLDBsMTEuOC0xMC4ybDIuNCwyLjFsLTE3LjcsMTUuM2wtMi42LTIuMmw2LjUtMTQuNCBsMCwwbC0xMS42LDEwbC0yLjQtMkw3Ny44LDM2Ny44eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzMyIj48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMjMiIGNsYXNzPSJzdDEiIGQ9Ik05MC41LDM3OC43bDIuNSwyLjJsLTE3LjcsMTUuM2wtMi42LTIuMkw5MC41LDM3OC43eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzMzIj48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMjQiIGNsYXNzPSJzdDEiIGQ9Ik05NC4yLDM4MmwyLjgsMi40bC05LjksMTQuMWwwLDBsMTYuMi04LjdsMi43LDIuM2wtMjIuMywxMS40bC0yLjgtMi40TDk0LjIsMzgyeiIvPjwvZz48ZyBpZD0iX0dyb3VwXzM0Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMjUiIGNsYXNzPSJzdDEiIGQ9Ik0xMDcuNCwzOTMuM2w5LjQsOC4ybC0zLDIuNmwtNi45LTZsLTMuOSwzLjRsNi40LDUuNWwtMywyLjZsLTYuNC01LjVsLTQuOCw0LjEgbDcuMSw2LjFsLTMsMi42bC05LjYtOC4zTDEwNy40LDM5My4zeiIvPjwvZz48ZyBpZD0iX0dyb3VwXzM1Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMjYiIGNsYXNzPSJzdDEiIGQ9Ik0xMTguOCw0MDguNGwyLDEuN2MxLjcsMS41LDIsMS44LDIuMSwyLjUgYzAsMC45LTAuNSwxLjYtMS4yLDIuMSBjLTAuOCwwLjgtMS45LDEuMi0zLDFjLTAuOS0wLjUtMS44LTEuMS0yLjUtMS44bC0xLjktMS42TDExOC44LDQwOC40eiBNMTAxLjUsNDE4LjlsMi42LDIuMmw3LjQtNi40bDAuNSwwLjUgYzEuNywxLjUsMS41LDEuOS0wLjEsNmwtMiw0LjlsMy4xLDIuN2wxLjktNC4zYzEuNi0zLjYsMS43LTQuNiwxLjUtNi4ydjBjMC42LDAuNCwxLjMsMC42LDIsMC44YzIsMC41LDQuNC0wLjQsNi4zLTIuMSBjMS43LTEuNSwzLjItMy44LDIuNS01LjdjLTAuNi0xLjItMS40LTIuMS0yLjUtMi45bC01LjQtNC43TDEwMS41LDQxOC45eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzM2Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMjciIGNsYXNzPSJzdDEiIGQ9Ik0xMjIuMyw0MjYuNGMtMC44LDAuOS0yLjksMy4zLTAuNiw1LjNjMS40LDEuMywzLjYsMS4zLDUsMGMxLjUtMS4zLDAuOS0yLjMtMC42LTUgYy0wLjgtMS41LTIuNi00LjcsMS4zLTguMWMxLjktMS43LDUuOS0zLjUsOS42LTAuM2MyLjUsMi4xLDMuNCw1LjMtMC41LDguOWwtMi43LTIuMWMwLjgtMC45LDIuMy0yLjUsMC4zLTQuMiBjLTAuOC0wLjctMi41LTEuNi0zLjktMC4zYy0xLjEsMS0wLjgsMi4xLDAuNSw0LjVzMy4xLDUuMy0xLjMsOWMtMS44LDEuNy00LjMsMi41LTYuNywyLjJjLTEuNC0wLjMtMi43LTAuOS0zLjgtMS45IGMtMS40LTEuMi00LjYtNC4zLDAuOC05LjhMMTIyLjMsNDI2LjR6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfMzciPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF8yOCIgY2xhc3M9InN0MSIgZD0iTTE0My44LDQyNC44bDIuNiwyLjJsLTE3LjcsMTUuM2wtMi42LTIuMkwxNDMuOCw0MjQuOHoiLz48L2c+PGcgaWQ9Il9Hcm91cF8zOCI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzI5IiBjbGFzcz0ic3QxIiBkPSJNMTQ4LjcsNDM0LjJsLTMuOC0zLjNsMy0yLjZsMTAuMSw4LjdsLTMsMi42bC0zLjgtMy4zbC0xNC43LDEyLjhMMTM0LDQ0NyBMMTQ4LjcsNDM0LjJ6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfMzkiPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF8zMCIgY2xhc3M9InN0MSIgZD0iTTE1Mi43LDQ1MC4zbDUuNi0xMi45bDMsMi42bC00LDguNmwxMC0zLjVsMi45LDIuNmwtMTUsNC45bC03LjQsNi40bC0yLjYtMi4yIEwxNTIuNyw0NTAuM3oiLz48L2c+PGcgaWQ9Il9Hcm91cF80MCI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzMxIiBjbGFzcz0ic3QxIiBkPSJNMTk5LDQ1MS4yYzAtMy4yLDAuOS03LjUsNS03LjVjNC40LDAsNSw0LjksNSw3LjRjMCw2LjMtMyw3LjUtNSw3LjUgYy0xLjgsMC0zLjQtMS4xLTQuMS0yLjdDMTk5LjIsNDU0LjQsMTk4LjksNDUyLjgsMTk5LDQ1MS4yeiBNMTk1LjMsNDUxLjNjMCw1LDIsMTEuMSw4LjcsMTEuMWM2LjMsMCw4LjctNS41LDguNy0xMS4yIGMwLTYuMy0yLjgtMTEuMi04LjctMTEuMkMxOTguMyw0NDAsMTk1LjIsNDQ0LjQsMTk1LjMsNDUxLjNMMTk1LjMsNDUxLjN6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfNDEiPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF8zMiIgY2xhc3M9InN0MSIgZD0iTTIxNS42LDQ0MC40aDEyLjN2My43aC04Ljd2NS4xaDcuNXYzLjdoLTcuNXY5LjJoLTMuNkwyMTUuNiw0NDAuNEwyMTUuNiw0NDAuNHoiLz48L2c+PGcgaWQ9Il9Hcm91cF80MiI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzMzIiBjbGFzcz0ic3QxIiBkPSJNMjY0LjQsNDUxLjZjMSwwLjcsMy45LDIuNSw2LjIsMC41YzEuMi0wLjgsMS41LTIuNSwwLjYtMy43IGMtMC4yLTAuMi0wLjQtMC41LTAuNi0wLjZjLTEuNS0xLjMtMi43LTAuOC01LjgsMC41Yy0xLjcsMC43LTUuNSwyLjMtOS40LTEuMWMtMS45LTEuNy00LTUuMS0wLjMtOC4zYzIuNS0yLjIsNi4xLTIuOSwxMC4yLDAuNCBsLTIuNCwyLjRjLTEtMC43LTIuOS0yLTQuOS0wLjJjLTAuOCwwLjctMS44LDIuMS0wLjQsMy40YzEuMSwxLDIuNCwwLjcsNS4xLTAuNXM2LjEtMi42LDEwLjQsMS4xYzIuMiwxLjksMyw0LjMsMi42LDUuOCBjLTAuNCwxLjMtMS4xLDIuNC0yLjIsMy4zYy0xLjQsMS4yLTQuOSw0LTExLjMtMC43TDI2NC40LDQ1MS42eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzQzIj48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMzQiIGNsYXNzPSJzdDEiIGQ9Ik0yODUuNiw0MzQuNGMxLjEsMS40LDQuNiw1LjksMC41LDkuNWMtMy41LDMtOS4zLDItMTQuOC0yLjggYy00LjktNC4zLTcuNS05LjYtMy40LTEzLjJjMS42LTEuNCwzLjgtMiw1LjktMS42YzEuNiwwLjMsMywwLjgsNC40LDEuN2wtMS43LDIuOWMtMi4zLTEuNC00LjMtMS40LTUuNy0wLjMgYy0zLjIsMi44LDEuNyw3LDIuOCw3LjljMS41LDEuNCwzLjIsMi41LDUuMSwzLjNjMS40LDAuNSwzLDAuMyw0LjItMC42YzEuNy0xLjUsMC43LTMuNy0wLjktNS43TDI4NS42LDQzNC40eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzQ0Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMzUiIGNsYXNzPSJzdDEiIGQ9Ik0yNzUuNCw0MjJsMi41LTIuMmwxNy44LDE1LjNsLTIuNSwyLjJMMjc1LjQsNDIyeiIvPjwvZz48ZyBpZD0iX0dyb3VwXzQ1Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMzYiIGNsYXNzPSJzdDEiIGQ9Ik0yODAuNSw0MTcuNmw5LjQtOC4xbDMsMi42bC02LjksNmwzLjksMy40bDYuNC01LjVsMywyLjZMMjkzLDQyNGw0LjgsNC4xbDcuMS02LjEgbDMsMi42bC05LjcsOC40TDI4MC41LDQxNy42eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzQ2Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfMzciIGNsYXNzPSJzdDEiIGQ9Ik0yOTIuMyw0MDcuM2wyLjUtMi4ybDE3LDUuOGwwLDBMMzAwLDQwMC43bDIuNC0yLjFsMTcuNywxNS4zbC0yLjYsMi4ybC0xNi43LTUuNmwwLDAgbDExLjYsMTBsLTIuNCwyLjFMMjkyLjMsNDA3LjN6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfNDciPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF8zOCIgY2xhc3M9InN0MSIgZD0iTTMyOCwzOTcuN2MxLjEsMS40LDQuNiw1LjksMC41LDkuNWMtMy40LDMtOS4zLDItMTQuOC0yLjhjLTQuOS00LjMtNy41LTkuNi0zLjQtMTMuMiBjMS42LTEuNCwzLjgtMS45LDUuOS0xLjVjMS42LDAuMywzLjEsMC45LDQuNCwxLjdsLTEuNywyLjljLTIuMy0xLjQtNC4zLTEuNC01LjYtMC4yYy0zLjIsMi43LDEuNyw2LjksMi44LDcuOSBjMS41LDEuNCwzLjIsMi41LDUuMSwzLjNjMS40LDAuNSwzLDAuMyw0LjItMC42YzEuNy0xLjUsMC43LTMuNy0wLjktNS43TDMyOCwzOTcuN3oiLz48L2c+PGcgaWQ9Il9Hcm91cF80OCI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzM5IiBjbGFzcz0ic3QxIiBkPSJNMzE3LjksMzg1LjJsOS40LTguMWwzLDIuNmwtNi45LDUuOWwzLjksMy40bDYuNC01LjVsMywyLjZsLTYuNCw1LjVsNC44LDQuMWw3LjEtNi4xIGwzLDIuNmwtOS42LDguNEwzMTcuOSwzODUuMnoiLz48L2c+PGcgaWQ9Il9Hcm91cF80OSI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzQwIiBjbGFzcz0ic3QxIiBkPSJNMzU4LjMsMzcwLjljMC41LDEsMC40LDIuMi0wLjMsMy4yYy0xLjEsMS4zLTMsMS00LjQsMC4yYy0xLjQtMC44LTIuMy0yLjMtMi4zLTMuOSBMMzU4LjMsMzcwLjl6IE0zNjQuMywzNjYuOWMtMS4zLDAuMy0yLjYsMC42LTQsMC42Yy0wLjQtMC43LTAuOS0xLjUtMy4zLTMuNmwtMi41LDEuOGMwLjcsMC42LDEuNCwxLjMsMS45LDJsLTUuMi0wLjUgYy0wLjMtMi4zLTAuOS00LTMtNS4zYy0yLjYtMS42LTUuOC0xLjUtNy41LDAuN2MtMS44LDIuMi0wLjksNC44LDEuNiw2LjNjMS43LDAuOSwzLjYsMS40LDUuNiwxLjRjMCwyLjgsMS41LDUuNCw0LDYuNyBjMS42LDEsNi41LDMsOS42LTAuOWMxLjItMS40LDEuNS0zLjMsMC44LTVjMS40LTAuMSwyLjctMC4zLDQuMS0wLjdMMzY0LjMsMzY2Ljl6IE0zNDYuMiwzNjYuOGMtMC44LDAtMS41LTAuMi0yLjItMC41IGMtMC43LTAuMy0xLTEuMi0wLjctMS45YzAtMC4xLDAuMS0wLjIsMC4yLTAuM2MwLjgtMC44LDItMC45LDIuOS0wLjJjMC42LDAuMywxLDAuOSwxLjIsMS41YzAuMSwwLjUsMC4yLDEsMC4zLDEuNEwzNDYuMiwzNjYuOHoiIC8+PC9nPjxnIGlkPSJfR3JvdXBfNTAiPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF80MSIgY2xhc3M9InN0MSIgZD0iTTM0OS4zLDM0NC4xdjQuNkgzNDV2LTEyLjRoNC4ydjQuNmgyMC44djMuMUgzNDkuM3oiLz48L2c+PGcgaWQ9Il9Hcm91cF81MSI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzQyIiBjbGFzcz0ic3QxIiBkPSJNMzQ1LDMzNC4zdi0xMS42aDQuMnY4LjRoNS42di03LjhoNC4ydjcuOGg2Ljh2LTguN2g0LjJ2MTEuOEwzNDUsMzM0LjNMMzQ1LDMzNC4zeiIgLz48L2c+PGcgaWQ9Il9Hcm91cF81MiI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzQzIiBjbGFzcz0ic3QxIiBkPSJNMzYyLjQsMzA2LjhjMiwwLjMsOC4xLDEuNCw4LjEsNi41YzAsNC4yLTQuOSw3LjEtMTIuOCw3LjFjLTcsMC0xMy4yLTIuMi0xMy4yLTcuMyBjMC0yLDEuMS0zLjgsMi45LTQuOGMxLjQtMC44LDIuOS0xLjMsNC41LTEuNWwxLjIsMy4xYy0yLjcsMC40LTQuMiwxLjctNC4yLDMuM2MwLDMuOSw2LjksMy45LDguNSwzLjljMi4xLDAuMSw0LjMtMC4yLDYuMy0wLjggYzEuNC0wLjQsMi4zLTEuNiwyLjUtM2MwLTIuMS0yLjYtMy01LjMtMy40TDM2Mi40LDMwNi44eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzUzIj48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfNDQiIGNsYXNzPSJzdDEiIGQ9Ik0zNDUsMzA0LjFWMzAxaDkuOXYtNi4xSDM0NXYtMy4xaDI1LjF2My4xaC0xMXY2LjFoMTF2My4xTDM0NSwzMDQuMUwzNDUsMzA0LjF6Ii8+PC9nPjxnIGlkPSJfR3JvdXBfNTQiPjxwYXRoIGlkPSJfQ29tcG91bmRfUGF0aF80NSIgY2xhc3M9InN0MSIgZD0iTTM0NSwyODguM3YtM2wxNi43LTYuM2wwLDBIMzQ1di0yLjloMjUuMXYzLjFsLTE2LjQsNi4ybDAsMGgxNi40djIuOUwzNDUsMjg4LjMgTDM0NSwyODguM3oiLz48L2c+PGcgaWQ9Il9Hcm91cF81NSI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzQ2IiBjbGFzcz0ic3QxIiBkPSJNMzU3LjYsMjcwLjJjLTMuNywwLTguNi0wLjctOC42LTQuM2MwLTMuOCw1LjctNC4zLDguNS00LjNjNy4yLDAsOC43LDIuNiw4LjcsNC4zIGMwLDEuOS0xLjcsMy0zLjIsMy41QzM2MS4zLDI3MCwzNTkuNCwyNzAuMiwzNTcuNiwyNzAuMnogTTM1Ny43LDI3My40YzUuOCwwLDEyLjgtMS43LDEyLjgtNy42YzAtNS41LTYuNC03LjUtMTIuOS03LjUgYy03LjMsMC0xMywyLjUtMTMsNy41QzM0NC42LDI3MC43LDM0OS43LDI3My40LDM1Ny43LDI3My40TDM1Ny43LDI3My40eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzU2Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfNDciIGNsYXNzPSJzdDEiIGQ9Ik0zNDUsMjU1Ljh2LTMuMWgyMC44di03LjhoNC4ydjExSDM0NXoiLz48L2c+PGcgaWQ9Il9Hcm91cF81NyI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzQ4IiBjbGFzcz0ic3QxIiBkPSJNMzU3LjYsMjQwYy0zLjcsMC04LjYtMC43LTguNi00LjNjMC0zLjgsNS43LTQuMyw4LjUtNC4zYzcuMiwwLDguNywyLjYsOC43LDQuMyBjMCwxLjktMS43LDMtMy4yLDMuNUMzNjEuMywyMzkuOCwzNTkuNCwyNDAuMSwzNTcuNiwyNDB6IE0zNTcuNywyNDMuM2M1LjgsMCwxMi44LTEuNywxMi44LTcuNWMwLTUuNS02LjQtNy41LTEyLjktNy41IGMtNy4zLDAtMTMsMi41LTEzLDcuNUMzNDQuNiwyNDAuNSwzNDkuNywyNDMuMiwzNTcuNywyNDMuM0wzNTcuNywyNDMuM3oiLz48L2c+PGcgaWQ9Il9Hcm91cF81OCI+PHBhdGggaWQ9Il9Db21wb3VuZF9QYXRoXzQ5IiBjbGFzcz0ic3QxIiBkPSJNMzU2LjcsMjE4LjZ2LTYuOGgxMGMxLjQsMC45LDMuOSwzLjUsMy45LDYuNiBjMCw1LjYtNi41LDcuOS0xMyw3LjkgYy02LjEsMC0xMi45LTIuMS0xMi45LTcuN2MwLTIuNSwxLjItNS44LDcuNC02LjZsMSwzLjFjLTMuNSwwLjYtNCwyLjUtNCwzLjVjMCwxLjMsMC43LDIuNywyLjgsMy42YzEuOCwwLjYsMy43LDAuOSw1LjUsMC44IGMzLjcsMCw4LjktMC44LDguOS00LjVjMC0xLjgtMS43LTMuMy0yLjEtMy43aC0zLjJ2My42TDM1Ni43LDIxOC42TDM1Ni43LDIxOC42eiIvPjwvZz48ZyBpZD0iX0dyb3VwXzU5Ij48cGF0aCBpZD0iX0NvbXBvdW5kX1BhdGhfNTAiIGNsYXNzPSJzdDEiIGQ9Ik0zNTkuNiwyMDQuN2wtMTQuNSw1Ljd2LTMuN2w5LjktMy42bC05LjktMy42di0zLjZsMTQuNiw1LjdoMTAuNXYzLjFIMzU5LjZ6Ii8+PC9nPjwvZz48L3N2Zz4= */
 function docHead(title, sub){
   return `<div class="doc-head">
@@ -7001,7 +7080,7 @@ function drawReportCharts(c, root, reg){
 }
 const DOC_KEY   = ["outline","spec","vetcep","calc","survey","report"];      /* the semester's working documents */
 const DOC_EXTRA = ["cqi","rubrics","sar221","comod","cemod","sdg"];          /* assembled for a visit, or when a change is proposed */
-const LANDSCAPE_DOCS = ["comod","cemod","sdg","vetcep"];   /* wide tables — printed and exported landscape */
+const LANDSCAPE_DOCS = ["vetcep","comod","cemod","sdg"];   /* wide tables — printed and exported landscape */
 const DOC_TITLES = {outline:"Course Outline",spec:"Course Specifications",vetcep:"Final Exam Vetting Form",
   calc:"Direct CO-PO Calculations",survey:"Course Evaluation Survey",report:"Course Report",cqi:"CQI Report",
   rubrics:"Assessment Rubrics",sar221:"SAR Table 2.2.1",comod:"CO Modification Request Form",cemod:"CE Moderation Form",sdg:"SDG Integration Map"};
@@ -7022,13 +7101,32 @@ function exportDocWord(){
   tmp.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
   tmp.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=frozenInputText(i); i.replaceWith(s); });
   tmp.querySelectorAll(".no-print").forEach(n=>n.remove());
-  const css='@page{ size:'+(land? "29.7cm 21cm":"21cm 29.7cm")+'; mso-page-orientation:'+(land?"landscape":"portrait")+'; margin:1cm; }'
+  /* Word cannot follow a relative path out of the app folder, and will not draw an SVG from
+     imported HTML. Anything that is not already a raster data URL becomes the embedded PNG. */
+  tmp.querySelectorAll("img").forEach(im=>{
+    const src = im.getAttribute("src") || "";
+    if(!/^data:image\/(png|jpe?g|gif|bmp)/i.test(src)) im.setAttribute("src", AUST_LOGO_PNG);
+    im.removeAttribute("onerror");
+    if(!im.getAttribute("height")) im.setAttribute("height","72");
+    im.setAttribute("style","height:72px;width:auto");
+  });
+  /* Word ignores a bare @page. It takes the page setup only from a NAMED page style that a div
+     in the body refers to — hence @page WordSection1 plus div.WordSection1{page:WordSection1}
+     and the wrapper below. Without this the file opens portrait whatever the CSS says. */
+  const css='@page WordSection1{ size:'+(land? "29.7cm 21.0cm":"21.0cm 29.7cm")+'; mso-page-orientation:'+(land?"landscape":"portrait")+'; margin:1.0cm 1.0cm 1.0cm 1.0cm; }'
+    + 'div.WordSection1{ page:WordSection1; }'
     + 'body{font-family:"Segoe UI",Arial,sans-serif;font-size:11pt;color:#1c2b28}'
     + 'table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:4px 6px;font-size:9.5pt;vertical-align:top;text-align:left}'
+    + 'body{margin:0}'
+    /* A physical width, not 100%: Word and LibreOffice resolve a percentage against a box
+       wider than the printable area, and the last column lands outside the margin. */
+    + 'table.vet-fixed{table-layout:fixed;width:' + (land? '27.2cm' : '18.6cm') + ';max-width:100%} table.vet-fixed th,table.vet-fixed td{overflow-wrap:anywhere;word-wrap:break-word;text-align:center;padding:2px 2px}'
+    + 'table.vet-map th{font-size:6.5pt;line-height:1.1;vertical-align:bottom} table.vet-map td{font-size:8pt}'
+    + 'table.vet-grid th{font-size:7.5pt;line-height:1.1} table.vet-grid td{font-size:8.5pt}'
     + 'th{background:#e3f1ec} h2{font-size:12.5pt;color:#0a4a40;margin:12px 0 4px}'
     + '.doc-title{font-size:15pt;font-weight:700;text-align:center;margin:6px 0} .doc-sub{text-align:center;font-size:10pt;color:#555;margin-bottom:8px}';
   const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
-    + '<head><meta charset="utf-8"><title>'+esc(DOC_TITLES[sel]||"Document")+'</title><style>'+css+'</style></head><body>'+tmp.innerHTML+'</body></html>';
+    + '<head><meta charset="utf-8"><title>'+esc(DOC_TITLES[sel]||"Document")+'</title><style>'+css+'</style></head><body><div class="WordSection1">'+tmp.innerHTML+'</div></body></html>';
   const name=(c.code||"course").replace(/\s+/g,"_")+"_"+sel+".doc";
   downloadFile(name, "\ufeff"+html, "application/msword");
   toast("Saved "+name+" — open in Word or LibreOffice to edit");
@@ -7778,38 +7876,78 @@ const VET_CHECKLIST = [
   "The figures/diagrams have appropriate size, clarity, and aspect ratio",
   "The mapped CEP levels(s) are appropriate",
   "The mapped CEA levels(s) are appropriate"];
-const VET_WP_SHORT = {2:"Range of Conflicting Requirements",3:"Depth of Analysis Required",4:"Familiarity of Issues",
+/* Column captions are abbreviated so the tables stay inside the page margin — the template
+   prints them in full across a landscape page, but a renderer that cannot break a long header
+   widens the whole table past the paper. The manual's full wording is the cell tooltip. */
+const VET_WP_SHORT = {2:"Conflicting requirements",3:"Depth of analysis",4:"Familiarity of issues",
+  5:"Applicable codes",6:"Stakeholder involvement",7:"Interdependence"};
+const VET_WP_FULL  = {2:"Range of Conflicting Requirements",3:"Depth of Analysis Required",4:"Familiarity of Issues",
   5:"Extent of Applicable Codes",6:"Extent of Stakeholder involvement and Conflicting requirements",7:"Interdependence"};
-const VET_EA_SHORT = {1:"Range of Resources",2:"Level of Interaction",3:"Innovation",
+const VET_EA_SHORT = {1:"Range of resources",2:"Level of interaction",3:"Innovation",
+  4:"Consequences",5:"Familiarity"};
+const VET_EA_FULL  = {1:"Range of Resources",2:"Level of Interaction",3:"Innovation",
   4:"Consequences for Society and the Environment",5:"Familiarity"};
+/* Short captions for the knowledge-profile sub-columns, per framework. */
+const VET_K_SHORT_V22 = {3:"Engineering fundamentals",4:"Specialist knowledge",5:"Design knowledge",6:"Engineering practice",8:"Research literature"};
+const VET_K_SHORT_V3  = {3:"Engineering fundamentals",4:"Specialist knowledge",5:"Design, resources, net zero",6:"Engineering practice",8:"Research literature"};
 /* The depth attribute (P1 / WP1) is subdivided by the knowledge-profile attributes the manual
    cites for it. OCM holds no per-question knowledge attribute, so these cells print blank. */
 const VET_DEPTH_KS = [3,4,5,6,8];
-function vetKShort(c,k){ return String(attrDef(c,'wk').tip(k)||"").replace(/\.$/,""); }
+function vetKShort(c,k){ return (fwV3(c)? VET_K_SHORT_V3 : VET_K_SHORT_V22)[k] || ""; }
+function vetKFull(c,k){ return String(attrDef(c,'wk').tip(k)||"").replace(/\.$/,""); }
 function vetPartOf(a){ const v=String(a.part||"").toUpperCase(); return (v==="A"||v==="B")? v : ""; }
 function vetParts(c){
   const used=[...new Set(c.assessments.map(vetPartOf).filter(Boolean))].sort();
   return used.length? used : [""];        /* nothing declared → one unlabelled table */
 }
 /* Template section 6: CO rows against this part's assessments, each with Question and Level. */
+/* The template gives the final examination ONE column with its questions listed inside, not a
+   column per question. A course that records each final-exam question as a separate assessment
+   would otherwise produce thirty columns. Final Exam and Mid Term are merged into one column
+   each; quizzes and assignments stay separate, as the template shows them. */
+const VET_MERGED_TYPES = { "Final Exam":"Final", "Mid Term":"Mid Term" };
+function vetColumns(list){
+  const out=[], seen={};
+  list.forEach(a=>{
+    const lab = VET_MERGED_TYPES[a.type];
+    if(lab){
+      if(!seen[lab]){ seen[lab]={ label:lab, parts:[] }; out.push(seen[lab]); }
+      seen[lab].parts.push(a);
+    } else out.push({ label:(a.name||a.type), parts:[a] });
+  });
+  return out;
+}
 function vetAssessTable(c, part){
   const mine = a => part? vetPartOf(a)===part : true;
-  const cols = c.assessments.filter(a=>!isCP(a) && mine(a));
+  const cols = vetColumns(c.assessments.filter(a=>!isCP(a) && mine(a)));
   const cpCO = new Set(); c.assessments.filter(a=>isCP(a) && mine(a)).forEach(a=>(a.cpCOs||[]).forEach(id=>cpCO.add(id)));
   const vr = esc(role("vetter"));
-  const head = `<tr><th rowspan="2" style="width:38px;text-align:center">CO</th><th rowspan="2" style="width:42px;text-align:center">CP*</th>`
-    + cols.map(a=>`<th colspan="2" style="text-align:center">${esc(a.name||a.type)}</th>`).join("")
-    + `<th rowspan="2" style="text-align:center;width:70px">Remarks by the ${vr} 1</th><th rowspan="2" style="text-align:center;width:70px">Remarks by the ${vr} 2</th></tr>`
-    + `<tr>` + cols.map(()=>`<th style="text-align:center;font-size:11px">Question</th><th style="text-align:center;font-size:11px">Level</th>`).join("") + `</tr>`;
+  /* Column widths are declared, not left to the renderer, so the table stays inside the margin.
+     The two narrow sub-columns are headed "Q #" and "Level" — the template prints these words
+     rotated in a 0.3 in column; abbreviating them is the readable way to the same fit. */
+  /* Weights normalised to exactly 100%, so the table can never ask for more width than the page
+     has, however many assessments a course records. */
+  const nAss = cols.length;
+  const W_CO=1.1, W_CP=1.0, W_PAIR=1.5, W_REM=3.4;
+  const total = W_CO + W_CP + nAss*2*W_PAIR + 2*W_REM;
+  const pc = w => (100*w/total).toFixed(2);
+  const cw = w => `<col width="${w}%" style="width:${w}%">`;        /* the attribute is what Word reads */
+  const colg = `<colgroup>${cw(pc(W_CO))}${cw(pc(W_CP))}`
+    + cols.map(()=>cw(pc(W_PAIR))+cw(pc(W_PAIR))).join("")
+    + `${cw(pc(W_REM))}${cw(pc(W_REM))}</colgroup>`;
+  const head = `<tr><th rowspan="2">CO</th><th rowspan="2">CP*</th>`
+    + cols.map(g=>`<th colspan="2">${esc(g.label)}</th>`).join("")
+    + `<th rowspan="2">Remarks by the ${vr} 1</th><th rowspan="2">Remarks by the ${vr} 2</th></tr>`
+    + `<tr>` + cols.map(()=>`<th>Q #</th><th>Level</th>`).join("") + `</tr>`;
   const rows = c.cos.map((co,i)=>{
-    const cells = cols.map(a=>{
-      const its=a.items.filter(it=>it.coId===co.id);
-      return `<td style="text-align:center;font-size:11.5px">${its.map(it=>esc(it.label)).join("<br>")}</td>`
-           + `<td style="text-align:center;font-size:11.5px">${its.map(it=>esc(itemLevelTag(it,co)||"")).join("<br>")}</td>`;
+    const cells = cols.map(g=>{
+      const its=[].concat(...g.parts.map(a=>a.items.filter(it=>it.coId===co.id)));
+      return `<td>${its.map(it=>esc(it.label)).join("<br>")}</td>`
+           + `<td>${its.map(it=>esc(itemLevelTag(it,co)||"")).join("<br>")}</td>`;
     }).join("");
-    return `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${cpCO.has(co.id)?"✓":""}</td>${cells}<td></td><td></td></tr>`;
+    return `<tr><td>${i+1}</td><td>${cpCO.has(co.id)?"✓":""}</td>${cells}<td></td><td></td></tr>`;
   }).join("");
-  return `<div class="tbl-wrap" style="overflow:visible"><table class="tbl vet-map"><thead>${head}</thead><tbody>${rows||`<tr><td colspan="${4+cols.length*2}" style="text-align:center">No course outcomes defined yet</td></tr>`}</tbody></table></div>`;
+  return `<div class="tbl-wrap"><table class="tbl vet-fixed vet-grid" width="100%">${colg}<thead>${head}</thead><tbody>${rows||`<tr><td colspan="${4+cols.length*2}" style="text-align:center">No course outcomes defined yet</td></tr>`}</tbody></table></div>`;
 }
 function docVetCEP(c){
   const v3 = fwV3(c);
@@ -7883,19 +8021,22 @@ function docVetCEP(c){
   <div class="vet-block">
   ${sec(7,"Mapping with the Complex Engineering Problem Solving (CEP) Levels")}
   <p class="vet-note">If there are any higher-order (i.e., Bloom’s Taxonomy Level &gt; 3) assessments in the cognitive domain (analysis, evaluation, and design), please fill out the following table to map them to the relevant CEP level(s). Note that “Complex Engineering Problems have characteristic ${WP}1 and some or all of ${WP}2 to ${WP}7” ${cite}.</p>
-  <div class="tbl-wrap" style="overflow:visible"><table class="tbl vet-map"><thead>
-    <tr><th rowspan="2" style="width:110px">Assessment Type</th><th rowspan="2" style="width:120px;text-align:center">Question #</th>
-        <th colspan="${VET_DEPTH_KS.length}" style="text-align:center">${WP}1</th>
-        ${[2,3,4,5,6,7].map(k=>`<th rowspan="2" style="text-align:center">${WP}${k}<br><span style="font-weight:400">${esc(VET_WP_SHORT[k])}</span></th>`).join("")}</tr>
-    <tr>${VET_DEPTH_KS.map(k=>`<th style="text-align:center">${WK}${k}</th>`).join("")}</tr>
-  </thead><tbody>${cepRows}</tbody></table></div>
-  <p class="vet-note">${VET_DEPTH_KS.map(k=>`<b>${WK}${k}:</b> ${esc(vetKShort(c,k))}`).join(" &nbsp;·&nbsp; ")}</p></div>
+  <div class="tbl-wrap"><table class="tbl vet-map vet-fixed" width="100%">
+    <colgroup><col width="9%" style="width:9%"><col width="6%" style="width:6%">${VET_DEPTH_KS.map(()=>`<col width="8%" style="width:8%">`).join("")}${[2,3,4,5,6,7].map(()=>`<col width="7.5%" style="width:7.5%">`).join("")}</colgroup>
+    <thead>
+    <tr><th rowspan="2">Assessment Type</th><th rowspan="2">Question #</th>
+        <th colspan="${VET_DEPTH_KS.length}">${WP}1</th>
+        ${[2,3,4,5,6,7].map(k=>`<th rowspan="2" title="${esc(WP+k+" — "+VET_WP_FULL[k])}">${WP}${k}<br><span style="font-weight:400">${esc(VET_WP_SHORT[k])}</span></th>`).join("")}</tr>
+    <tr>${VET_DEPTH_KS.map(k=>`<th title="${esc(WK+k+" — "+vetKFull(c,k))}">${WK}${k}<br><span style="font-weight:400">${esc(vetKShort(c,k))}</span></th>`).join("")}</tr>
+  </thead><tbody>${cepRows}</tbody></table></div></div>
   <div class="vet-block">
   ${sec(8,"Mapping with the Complex Engineering Activities (CEA) Levels")}
   <p class="vet-note">If there are any ${commPO} (Communication)-related assessments, please fill out the following table to map them to the relevant CEA level(s). Note that “Complex activities are (engineering) activities or projects that have some or all of the following characteristics” ${citeA}.</p>
-  <div class="tbl-wrap" style="overflow:visible"><table class="tbl vet-map"><thead>
-    <tr><th style="width:110px">Assessment Type</th><th style="width:120px;text-align:center">Question #</th>
-        ${[1,2,3,4,5].map(k=>`<th style="text-align:center">${EA}${k}<br><span style="font-weight:400">${esc(VET_EA_SHORT[k])}</span></th>`).join("")}</tr>
+  <div class="tbl-wrap"><table class="tbl vet-map vet-fixed" width="100%">
+    <colgroup><col width="14%" style="width:14%"><col width="8%" style="width:8%">${[1,2,3,4,5].map(()=>`<col width="15.6%" style="width:15.6%">`).join("")}</colgroup>
+    <thead>
+    <tr><th>Assessment Type</th><th>Question #</th>
+        ${[1,2,3,4,5].map(k=>`<th title="${esc(EA+k+" — "+VET_EA_FULL[k])}">${EA}${k}<br><span style="font-weight:400">${esc(VET_EA_SHORT[k])}</span></th>`).join("")}</tr>
   </thead><tbody>${eaRows}</tbody></table></div></div>
   <div class="vet-block">
   ${sec(9,"Checklist (To Be Completed by the Instructor and One of the Vetters)")}
