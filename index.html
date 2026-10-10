@@ -189,6 +189,7 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .ta-print-mirror{display:none}
 .keep-next{page-break-after:avoid;break-after:avoid}
 .keep-together{page-break-inside:avoid;break-inside:avoid}
+.pg-clone{position:absolute;left:-30000px;top:0;visibility:hidden;pointer-events:none;box-sizing:content-box;padding:0 !important;margin:0;border:0;box-shadow:none;column-gap:0;column-fill:auto;overflow:visible}
 .report-sheet.pg-on{box-sizing:content-box;width:190mm;max-width:none;padding:0;margin:0 auto;border:1px solid #cbd5e1}
 .report-sheet.pg-on.pg-land{width:277mm}
 @media print{ .report-sheet.pg-on{width:auto;border:0;margin:0} }
@@ -6891,6 +6892,8 @@ function regrowAllTA(){
     new ResizeObserver(()=>{ const w = document.body.clientWidth; if(w !== lastW){ lastW = w; refit(); } }).observe(document.body);
   } else window.addEventListener("resize", refit);
   if(document.fonts && document.fonts.ready) document.fonts.ready.then(regrowAllTA);
+  let gTimer = null;
+  document.addEventListener("input", ()=>{ if(!ui().pageGuide) return; clearTimeout(gTimer); gTimer = setTimeout(()=>{ if(typeof drawPageGuides === "function") drawPageGuides(); }, 400); });
   window.addEventListener("beforeprint", ()=>{
     document.querySelectorAll(".report-sheet textarea").forEach(t=>{
       const m = document.createElement("div");
@@ -7067,6 +7070,7 @@ function applyDocSpace(host, key, c, interactive){
   if(!host) return;
   const map = (c.aust && c.aust.docSpace && c.aust.docSpace[key]) || {};
   [...host.children].forEach((el, i)=>{
+    el.dataset.bi = i;
     const mm = map[i] || 0;
     if(interactive){
       const ctl = document.createElement("div");
@@ -7085,28 +7089,70 @@ function applyDocSpace(host, key, c, interactive){
     }
   });
 }
-/* Dashed lines where an A4 page ends (277 mm printable height portrait / 190 mm landscape). With the
-   toggle on, .pg-on lays the sheet out at the printable WIDTH (190 / 277 mm) — text then wraps as it does
-   when printed — so the lines are positions in the real layout, not a scaled guess. Content that a
-   keep-together rule pushes to the next page still moves the real break earlier than its line; the
-   "guide page height" box tunes for converters that differ. */
+/* Dashed lines where a printed page really starts. A hidden copy of the document (built the way the PDF
+   export builds it: text boxes frozen into blocks, spacing and keep-together rules applied) is laid out in a
+   multi-column box whose column = one printable A4 page (190 x 277 mm; 277 x 190 landscape). Column
+   fragmentation honours the same break rules as the PDF converter, so a block that is moved whole to the
+   next page is reported as moved. The first element found in each later column marks that page's start, and
+   its twin in the live sheet (matched by block index + position) gets the line. If the two structures ever
+   differ, nothing is drawn rather than something wrong. "Guide page height %" tunes for other converters. */
+function pgCandidates(root){
+  const out = [];
+  [...root.children].forEach(ch=>{
+    if(ch.dataset.bi === undefined) return;
+    out.push(ch);
+    ch.querySelectorAll("tr, p, h2, h3, li").forEach(e=>out.push(e));
+  });
+  return out;
+}
+function buildPageClone(key, c, land, pageH, pageW){
+  const host = document.createElement("div");
+  host.className = "report-sheet pg-clone";
+  host.style.cssText = `height:${pageH}px;width:${pageW}px;column-width:${pageW}px`;
+  host.innerHTML = docsRegistry()[key][1](c);
+  applyDocSpace(host, key, c, false);       // indexes the ORIGINAL blocks, exactly as the live sheet and the export do
+  host.querySelectorAll("textarea").forEach(t=>{ const d=document.createElement("div"); d.textContent=t.value||t.textContent||""; d.setAttribute("style","white-space:pre-wrap"); t.replaceWith(d); });
+  host.querySelectorAll("input").forEach(i=>{ const sp=document.createElement("span"); sp.textContent=i.value||""; i.replaceWith(sp); });
+  host.querySelectorAll("select").forEach(se=>{ const sp=document.createElement("span"); sp.textContent=(se.selectedOptions[0]&&se.selectedOptions[0].textContent)||""; se.replaceWith(sp); });
+  host.querySelectorAll(".no-print").forEach(n=>{ n.style.display = "none"; });   // hidden, not deleted, so its blocks still pair up with the live sheet's
+  markKeepWithNext(host);
+  document.body.appendChild(host);
+  return host;
+}
 function drawPageGuides(){
-  document.querySelectorAll(".pg-guide").forEach(g=>g.remove());
+  document.querySelectorAll(".pg-guide, .pg-clone").forEach(g=>g.remove());
   const sheet = document.querySelector("#tab-docs .report-sheet");
   if(!sheet || !ui().pageGuide) return;
-  const land = LANDSCAPE_DOCS.includes(window._docSel || "outline");
-  const cs = getComputedStyle(sheet);
-  const pageH = (land? 190 : 277) * MM_PX * (ui().guideScale || 1);   // printable height of an A4 page with 10 mm margins
+  const c = activeCourse(); if(!c) return;
+  const key = window._docSel || "outline";
+  const land = LANDSCAPE_DOCS.includes(key);
+  const pageH = Math.round((land? 190 : 277) * MM_PX * (ui().guideScale || 1));   // printable height of an A4 page, 10 mm margins
+  const pageW = Math.round((land? 277 : 190) * MM_PX);
   if(!(pageH > 100)) return;
-  if(cs.position === "static") sheet.style.position = "relative";
-  const padTop = parseFloat(cs.paddingTop) || 0;
-  for(let k = 1; padTop + k*pageH < sheet.scrollHeight - 20; k++){
-    const g = document.createElement("div");
-    g.className = "pg-guide no-print";
-    g.style.top = Math.round(padTop + k*pageH) + "px";
-    g.innerHTML = `<span>page ${k+1} starts here (approx.)</span>`;
-    sheet.appendChild(g);
-  }
+  if(getComputedStyle(sheet).position === "static") sheet.style.position = "relative";
+  let clone;
+  try{
+    clone = buildPageClone(key, c, land, pageH, pageW);
+    const cc = pgCandidates(clone), lc = pgCandidates(sheet);
+    if(cc.length !== lc.length) return;
+    const x0 = clone.getBoundingClientRect().left, sTop = sheet.getBoundingClientRect().top;
+    let cur = 0;
+    cc.forEach((e, i)=>{
+      if(!e.getClientRects().length) return;      // hidden (.no-print) or empty: takes no part in pagination
+      const col = Math.floor((e.getBoundingClientRect().left - x0) / pageW + 0.02);
+      if(col <= cur) return;
+      const el = lc[i];
+      const prev = el.previousElementSibling;
+      const anchor = (prev && prev.classList.contains("doc-space-ctl")) ? prev : el;   // keep the line above the block's whitespace control
+      const g = document.createElement("div");
+      g.className = "pg-guide no-print";
+      g.style.top = Math.round(anchor.getBoundingClientRect().top - sTop) + "px";
+      g.innerHTML = `<span>page ${col+1} starts here</span>`;
+      sheet.appendChild(g);
+      cur = col;
+    });
+  }catch(err){ console.warn("page guides:", err); }
+  finally{ if(clone) clone.remove(); }
 }
 
 /* ---- Document 1: Course Outline ---- */
