@@ -189,6 +189,7 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .ta-print-mirror{display:none}
 .keep-next{page-break-after:avoid;break-after:avoid}
 .keep-together{page-break-inside:avoid;break-inside:avoid}
+.pg-manual .vet-block,.pg-manual .keep-next,.pg-manual .keep-together,.pg-manual .vet-sec,.pg-manual .vet-part,.pg-manual .vet-note,.pg-manual h2,.pg-manual h3,.pg-manual .sig-table,.pg-manual .sig-notice{page-break-inside:auto !important;break-inside:auto !important;page-break-after:auto !important;break-after:auto !important;page-break-before:auto !important;break-before:auto !important}
 .pg-clone{position:absolute;left:-30000px;top:0;visibility:hidden;pointer-events:none;box-sizing:content-box;padding:0 !important;margin:0;border:0;box-shadow:none;column-gap:0;column-fill:auto;overflow:visible}
 .report-sheet.pg-on{box-sizing:content-box;width:190mm;max-width:none;padding:0;margin:0 auto;border:1px solid #cbd5e1}
 .report-sheet.pg-on.pg-land{width:277mm}
@@ -6967,6 +6968,7 @@ function renderDocs(){
   const sheetEl = el.querySelector(".report-sheet");
   markKeepWithNext(sheetEl);
   sheetEl.classList.toggle("pg-on", !!ui().pageGuide);
+  sheetEl.classList.toggle("pg-manual", docIsManual(sel, c));
   sheetEl.classList.toggle("pg-land", LANDSCAPE_DOCS.includes(sel));
   applyDocSpace(sheetEl, sel, c, !!ui().pageGuide);
   autoGrowAll("tab-docs");
@@ -7052,6 +7054,15 @@ function markKeepWithNext(root){
     if(p.querySelector('textarea, div[style*="pre-wrap"]') && p.querySelector("b")) p.classList.add("keep-together", "keep-next");
   });
 }
+/* Manual page layout: while the layout editor is on, or once a document carries manual whitespace, the
+   automatic keep-together rules (kept blocks, title-with-next, signature/notice keeping) are switched off
+   for it — live view, hidden guide copy, print and the saved PDF alike — so the whitespace the author set
+   is the only thing deciding where pages break. Rows are still never split mid-row. Keying on the saved
+   spacing means a later regeneration (e.g. the coordinator's signed PDF) reproduces the same layout. */
+function docIsManual(key, c){
+  const m = c && c.aust && c.aust.docSpace && c.aust.docSpace[key];
+  return !!(ui().pageGuide || (m && Object.keys(m).length));
+}
 function togglePageGuide(on){ ui().pageGuide = !!on; save(); renderDocs(); }
 function setGuideScale(v){ const n = Math.min(200, Math.max(50, parseFloat(v)||100)); ui().guideScale = n/100; save(); drawPageGuides(); }
 function docSpaceAdj(key, idx, deltaMm){
@@ -7107,7 +7118,7 @@ function pgCandidates(root){
 }
 function buildPageClone(key, c, land, pageH, pageW){
   const host = document.createElement("div");
-  host.className = "report-sheet pg-clone";
+  host.className = "report-sheet pg-clone" + (docIsManual(key, c) ? " pg-manual" : "");
   host.style.cssText = `height:${pageH}px;width:${pageW}px;column-width:${pageW}px`;
   host.innerHTML = docsRegistry()[key][1](c);
   applyDocSpace(host, key, c, false);       // indexes the ORIGINAL blocks, exactly as the live sheet and the export do
@@ -9282,12 +9293,12 @@ function embedSignatureHtml(name, shouldShow){
 function embedBuildPdfHtml(key, bodyHtml){
   const land = LANDSCAPE_DOCS.includes(key);
   const noticeHtml = embedAnySignatureRendered
-    ? '<p style="margin:14px 0 0;padding-top:8px;border-top:1px solid #cbd5e1;font-size:10.5px;color:#475569;font-style:italic;page-break-inside:avoid;break-before:avoid;page-break-before:avoid">This is an electronically generated and signed document.</p>'
+    ? '<p class="sig-notice" style="margin:14px 0 0;padding-top:8px;border-top:1px solid #cbd5e1;font-size:10.5px;color:#475569;font-style:italic;page-break-inside:avoid;break-before:avoid;page-break-before:avoid">This is an electronically generated and signed document.</p>'
     : "";
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(DOC_TITLES[key]||"Document")+'</title><style>'
     + '@page{ size:'+(land? "A4 landscape":"A4 portrait")+'; margin:10mm; }\n'
     + embedGetPageCss()
-    + '</style></head><body><div id="tab-docs" class="tab active"><div class="report-sheet">' + bodyHtml + noticeHtml + '</div></div></body></html>';
+    + '</style></head><body><div id="tab-docs" class="tab active"><div class="report-sheet' + (docIsManual(key, activeCourse()) ? ' pg-manual' : '') + '">' + bodyHtml + noticeHtml + '</div></div></body></html>';
 }
 async function embedSaveDoc(key){
   const c = activeCourse(); if(!c) return;
