@@ -186,6 +186,14 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
    bottom of a page with its table starting on the next. */
 .report-sheet .tbl tr,.report-sheet .sig-table tr{page-break-inside:avoid;break-inside:avoid}
 .report-sheet h2,.report-sheet h3{page-break-after:avoid;break-after:avoid}
+.ta-print-mirror{display:none}
+.pg-toggle{font-size:12.5px;display:inline-flex;align-items:center;gap:5px;margin-left:6px;cursor:pointer}
+.doc-space{display:block}
+.doc-space-ctl{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted);border-top:1px dashed #9ab;margin:2px 0;padding:2px 0}
+.doc-space-ctl button{font-size:11px;padding:0 6px;border:1px solid var(--border);background:#fff;border-radius:4px;cursor:pointer}
+.doc-space-ctl button:disabled{opacity:.4;cursor:default}
+.pg-guide{position:absolute;left:0;right:0;border-top:2px dashed #c0392b;pointer-events:none;z-index:5}
+.pg-guide span{position:absolute;right:6px;top:-9px;background:#fff;color:#c0392b;font-size:10px;padding:0 6px}
 @media print{
   .app-header,.tabs,.no-print,footer,.toast,.doc-nav{display:none !important}
   body{background:#fff}
@@ -196,6 +204,8 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
   .card{box-shadow:none}
   .report-sheet .di{border-color:transparent}
   .report-sheet textarea.di{border:none}
+  .report-sheet textarea{display:none !important}
+  .ta-print-mirror{display:block;white-space:pre-wrap;overflow-wrap:break-word;font:inherit;padding:2px 4px}
   .print-only{display:inline}
   input,textarea,select{color:#000 !important}
 }
@@ -739,6 +749,7 @@ function ensureAust(c){
   a.vet = Object.assign({vetter1:"",vetter2:""}, a.vet||{});
   if(a.outline.grading===undefined) a.outline.grading="";   /* per-course override; blank means "use the institutional scale in Setup" */
   /* CO Modification Request — rows are drafted from CQI findings or added by hand */
+  if(!a.docSpace || typeof a.docSpace!=="object" || Array.isArray(a.docSpace)) a.docSpace = {};   // manual whitespace per document: { docKey: { blockIndex: mm } }
   a.comod = Object.assign({ committee:"", convener:"", submitDate:"", effectiveFrom:"", decision:"", decisionDate:"", comments:"", rows:[] }, a.comod||{});
   if(!Array.isArray(a.comod.rows)) a.comod.rows = [];
   a.report = Object.assign({coComment:"",poComment:"",feedback:"",surveys:"",hod:"",submitDate:""}, a.report||{});
@@ -6858,6 +6869,29 @@ function autoGrowAll(rootId){
   if(!root || !root.querySelectorAll) return;
   root.querySelectorAll("textarea.di, textarea.ag").forEach(t=>autoGrowTA(t));
 }
+/* A textarea's height is fixed in px from its text at the width it was last measured at, so any later
+   re-wrap (window resize, web fonts arriving, print at paper width) would clip it. Re-fit them all
+   whenever the page width changes, and mirror them as plain text blocks while printing. */
+function regrowAllTA(){
+  document.querySelectorAll("textarea.di, textarea.ag").forEach(t=>{ if(t.offsetParent) autoGrowTA(t); });
+  if(typeof drawPageGuides === "function") drawPageGuides();
+}
+(function keepTextareasFitted(){
+  let lastW = 0, timer = null;
+  const refit = ()=>{ clearTimeout(timer); timer = setTimeout(regrowAllTA, 60); };
+  if(typeof ResizeObserver === "function"){
+    new ResizeObserver(()=>{ const w = document.body.clientWidth; if(w !== lastW){ lastW = w; refit(); } }).observe(document.body);
+  } else window.addEventListener("resize", refit);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(regrowAllTA);
+  window.addEventListener("beforeprint", ()=>{
+    document.querySelectorAll(".report-sheet textarea").forEach(t=>{
+      const m = document.createElement("div");
+      m.className = "ta-print-mirror"; m.textContent = t.value;
+      t.insertAdjacentElement("afterend", m);
+    });
+  });
+  window.addEventListener("afterprint", ()=>document.querySelectorAll(".ta-print-mirror").forEach(m=>m.remove()));
+})();
 function coIn(id, field, val, ph){ return `<input class="di" value="${esc(val)}" placeholder="${esc(ph||"")}" onchange="updateCO('${id}','${field}',this.value)">`; }
 /* Print an em-dash instead of an EMPTY in-place-editable control (screen behavior unchanged). */
 function pod(html, val){ return (val && String(val).trim())? html : `<span class="no-print">${html}</span><span class="print-only">—</span>`; }
@@ -6913,10 +6947,14 @@ function renderDocs(){
     <button class="btn secondary" onclick="exportDocWord()" title="Saves this document as a Word-compatible .doc — opens in Word or LibreOffice with tables and layout intact, fully editable. From Word you can Save As .rtf if that format is required.">⬇ Export for Word (.doc)</button>
     ${IS_EMBED && EMBED_DOC_FOLDERS[sel]? `<button class="btn secondary" id="embedSaveBtn_${sel}" onclick="embedSaveDoc('${sel}')">💾 Save to OBE Drive</button>` : ""}
     ${IS_EMBED && DOC_KEY.includes(sel)? `<button class="btn secondary" onclick="embedSaveAllDocs()">💾 Save all 6 key documents</button>` : ""}
+    <label class="pg-toggle" title="Show approximate page-break lines and add blank space between blocks, so a heading or table does not land awkwardly across pages. Off by default; the guides are never printed or saved."><input type="checkbox" ${ui().pageGuide? "checked":""} onchange="togglePageGuide(this.checked)"> Page layout (guides &amp; whitespace)</label>
+    ${ui().pageGuide? `<label class="pg-toggle" title="If the dashed lines do not match where the saved PDF really breaks, nudge this until they do."> guide page height <input type="number" min="50" max="200" step="1" value="${Math.round((ui().guideScale||1)*100)}" style="width:58px" onchange="setGuideScale(this.value)">%</label>` : ""}
     <span class="pill-note">Dotted fields are editable and save automatically. Fields already entered elsewhere in the app are filled in for you. The documents follow the AUST OBE templates (BAETE / Washington Accord framework).</span>
   </div>
   <div class="report-sheet">${docs[sel][1](c)}</div>`;
+  applyDocSpace(el.querySelector(".report-sheet"), sel, c, !!ui().pageGuide);
   autoGrowAll("tab-docs");
+  drawPageGuides();
   if(sel==="report") drawReportCharts(c);
 }
 /* CO / PO attainment charts embedded in Course Report 4.2 / 4.3 — same data and styling as the Attainment Section. */
@@ -6971,6 +7009,70 @@ function exportDocWord(){
   toast("Saved "+name+" — open in Word or LibreOffice to edit");
 }
 function showDoc(d){ window._docSel = d; renderDocs(); }
+
+/* ---- Page layout aid (opt-in): approximate page-break guides + manual whitespace between blocks ----
+   Whitespace is stored per course (aust.docSpace[docKey][blockIndex] = mm, where the index is the
+   position among the document's top-level blocks) and rendered as a plain blank block before that
+   block — in the live view, Print, Word export and the PDF saved to OBE Drive alike, so it works even
+   where a converter ignores page-break rules. The guides are screen-only (.no-print). */
+const DOC_SPACE_STEP_MM = 10, MM_PX = 96/25.4;
+function togglePageGuide(on){ ui().pageGuide = !!on; save(); renderDocs(); }
+function setGuideScale(v){ const n = Math.min(200, Math.max(50, parseFloat(v)||100)); ui().guideScale = n/100; save(); drawPageGuides(); }
+function docSpaceAdj(key, idx, deltaMm){
+  const c = activeCourse(); if(!c) return;
+  ensureAust(c);
+  const m = c.aust.docSpace[key] = c.aust.docSpace[key] || {};
+  const v = deltaMm === 0 ? 0 : Math.max(0, Math.min(250, (m[idx]||0) + deltaMm));
+  if(v) m[idx] = v; else delete m[idx];
+  if(!Object.keys(m).length) delete c.aust.docSpace[key];
+  save(); renderDocs();
+}
+/* host's direct children are the document's blocks. Indexes are read from the ORIGINAL children, so
+   inserting spacers/controls never shifts them; the same call on the detached export host (interactive
+   = false) therefore lands the spacers in exactly the same places. */
+function applyDocSpace(host, key, c, interactive){
+  if(!host) return;
+  const map = (c.aust && c.aust.docSpace && c.aust.docSpace[key]) || {};
+  [...host.children].forEach((el, i)=>{
+    const mm = map[i] || 0;
+    if(interactive){
+      const ctl = document.createElement("div");
+      ctl.className = "doc-space-ctl no-print";
+      ctl.innerHTML = `<span>↕ space before this block: <b>${mm} mm</b></span>`
+        + `<button onclick="docSpaceAdj('${key}',${i},${DOC_SPACE_STEP_MM})">＋${DOC_SPACE_STEP_MM}</button>`
+        + `<button onclick="docSpaceAdj('${key}',${i},-${DOC_SPACE_STEP_MM})" ${mm? "":"disabled"}>−${DOC_SPACE_STEP_MM}</button>`
+        + `<button onclick="docSpaceAdj('${key}',${i},0)" ${mm? "":"disabled"}>reset</button>`;
+      host.insertBefore(ctl, el);
+    }
+    if(mm > 0){
+      const sp = document.createElement("div");
+      sp.className = "doc-space";
+      sp.setAttribute("style", "height:" + Math.round(mm*MM_PX) + "px");
+      host.insertBefore(sp, el);
+    }
+  });
+}
+/* Dashed lines where an A4 page would end if the sheet's width were the printable width (190 mm
+   portrait / 277 mm landscape) — an estimate, tunable with the "guide page height" box. */
+function drawPageGuides(){
+  document.querySelectorAll(".pg-guide").forEach(g=>g.remove());
+  const sheet = document.querySelector("#tab-docs .report-sheet");
+  if(!sheet || !ui().pageGuide) return;
+  const land = LANDSCAPE_DOCS.includes(window._docSel || "outline");
+  const cs = getComputedStyle(sheet);
+  const innerW = sheet.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const pageH = innerW * (land? 190/277 : 277/190) * (ui().guideScale || 1);
+  if(!(pageH > 100)) return;
+  if(cs.position === "static") sheet.style.position = "relative";
+  const padTop = parseFloat(cs.paddingTop) || 0;
+  for(let k = 1; padTop + k*pageH < sheet.scrollHeight - 20; k++){
+    const g = document.createElement("div");
+    g.className = "pg-guide no-print";
+    g.style.top = Math.round(padTop + k*pageH) + "px";
+    g.innerHTML = `<span>page ${k+1} starts here (approx.)</span>`;
+    sheet.appendChild(g);
+  }
+}
 
 /* ---- Document 1: Course Outline ---- */
 function docOutline(c){
@@ -9119,6 +9221,7 @@ async function embedSaveDoc(key){
     embedAnySignatureRendered = false;
     try { host.innerHTML = docsRegistry()[key][1](c); }
     finally { embedExporting = false; }
+    applyDocSpace(host, key, c, false);
     host.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
     host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
     host.querySelectorAll("select").forEach(sel2=>{ const s=document.createElement("span"); s.textContent=(sel2.selectedOptions[0]&&sel2.selectedOptions[0].textContent)||""; sel2.replaceWith(s); });
