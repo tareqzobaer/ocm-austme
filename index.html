@@ -6976,14 +6976,15 @@ function renderDocs(){
   if(sel==="report") drawReportCharts(c);
 }
 /* CO / PO attainment charts embedded in Course Report 4.2 / 4.3 — same data and styling as the Attainment Section. */
-function drawReportCharts(c){
+function drawReportCharts(c, root, reg){
   if(typeof Chart === "undefined") return;
   const att = computeAttainment(c);
   const target = c.cfg.kpiTarget;
+  reg = reg || charts;   // the export draws into its own detached copy and must not replace the live charts
   const mk = (id, labels, data, label) => {
-    const ctx = document.getElementById(id); if(!ctx) return;
-    if(charts[id]) charts[id].destroy();
-    charts[id] = new Chart(ctx, {
+    const ctx = root? root.querySelector("#"+id) : document.getElementById(id); if(!ctx) return;
+    if(reg[id]) reg[id].destroy();
+    reg[id] = new Chart(ctx, {
       type:"bar",
       data:{ labels,
         datasets:[
@@ -7004,6 +7005,12 @@ const LANDSCAPE_DOCS = ["comod","cemod","sdg","vetcep"];   /* wide tables — pr
 const DOC_TITLES = {outline:"Course Outline",spec:"Course Specifications",vetcep:"Final Exam Vetting Form",
   calc:"Direct CO-PO Calculations",survey:"Course Evaluation Survey",report:"Course Report",cqi:"CQI Report",
   rubrics:"Assessment Rubrics",sar221:"SAR Table 2.2.1",comod:"CO Modification Request Form",cemod:"CE Moderation Form",sdg:"SDG Integration Map"};
+/* Text a frozen <input> turns into when a document is exported/measured: its value, or — for a tick box,
+   whose value is the meaningless "on" — ✓ when ticked and □ (the empty box the forms already use) when not. */
+function frozenInputText(i){
+  if(i.type === "checkbox" || i.type === "radio") return i.checked ? "✓" : "□";
+  return i.value || "";
+}
 function exportDocWord(){
   const c=activeCourse(); if(!c) return;
   const sel=window._docSel||"outline";
@@ -7013,7 +7020,7 @@ function exportDocWord(){
   /* freeze live inputs into text so Word receives content, not form controls */
   const tmp=document.createElement("div"); tmp.innerHTML=host.innerHTML;
   tmp.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
-  tmp.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
+  tmp.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=frozenInputText(i); i.replaceWith(s); });
   tmp.querySelectorAll(".no-print").forEach(n=>n.remove());
   const css='@page{ size:'+(land? "29.7cm 21cm":"21cm 29.7cm")+'; mso-page-orientation:'+(land?"landscape":"portrait")+'; margin:1cm; }'
     + 'body{font-family:"Segoe UI",Arial,sans-serif;font-size:11pt;color:#1c2b28}'
@@ -7123,7 +7130,7 @@ function buildPageClone(key, c, land, pageH, pageW){
   host.innerHTML = docsRegistry()[key][1](c);
   applyDocSpace(host, key, c, false);       // indexes the ORIGINAL blocks, exactly as the live sheet and the export do
   host.querySelectorAll("textarea").forEach(t=>{ const d=document.createElement("div"); d.textContent=t.value||t.textContent||""; d.setAttribute("style","white-space:pre-wrap"); t.replaceWith(d); });
-  host.querySelectorAll("input").forEach(i=>{ const sp=document.createElement("span"); sp.textContent=i.value||""; i.replaceWith(sp); });
+  host.querySelectorAll("input").forEach(i=>{ const sp=document.createElement("span"); sp.textContent=frozenInputText(i); i.replaceWith(sp); });
   host.querySelectorAll("select").forEach(se=>{ const sp=document.createElement("span"); sp.textContent=(se.selectedOptions[0]&&se.selectedOptions[0].textContent)||""; se.replaceWith(sp); });
   host.querySelectorAll(".no-print").forEach(n=>{ n.style.display = "none"; });   // hidden, not deleted, so its blocks still pair up with the live sheet's
   markKeepWithNext(host);
@@ -7908,7 +7915,7 @@ function docVetCEP(c){
   </tbody></table></div>
   <div class="vet-block">
   <p class="vet-sign">Remarks (if any):</p>
-  ${dots(8)}
+  ${dots(5)}
   <table class="tbl" style="margin-top:8px"><tr>
     <td style="width:50%">Signature of the ${vr} 1:<br><br>__________________<br><br>Date:<br><br>Name: ${di('vet.vetter1', c.aust.vet.vetter1, 'Name of the first '+role("vetter").toLowerCase())}</td>
     <td style="width:50%">Signature of the ${vr} 2:<br><br>__________________<br><br>Date:<br><br>Name: ${di('vet.vetter2', c.aust.vet.vetter2, 'Name of the second '+role("vetter").toLowerCase())}</td>
@@ -9317,15 +9324,40 @@ async function embedSaveDoc(key){
     finally { embedExporting = false; }
     applyDocSpace(host, key, c, false);
     host.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
-    host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
+    host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=frozenInputText(i); i.replaceWith(s); });
     host.querySelectorAll("select").forEach(sel2=>{ const s=document.createElement("span"); s.textContent=(sel2.selectedOptions[0]&&sel2.selectedOptions[0].textContent)||""; sel2.replaceWith(s); });
     host.querySelectorAll(".no-print").forEach(n=>n.remove());
     markKeepWithNext(host);
     await embedInlineImages(host);
+    embedChartsToImages(host, c);
     const html = embedBuildPdfHtml(key, host.innerHTML);
     const filename = (c.code||"course")+"_"+(embedSemesterCode||c.semester||"")+"_"+key+".pdf";
     embedPostToParent({ type:"OCM_SAVE_DOCS", docs:[{ folderCode: EMBED_DOC_FOLDERS[key], filename, html }] });
   }catch(e){ console.warn(e); toast("Could not prepare document: "+e.message); if(btn){ btn.disabled=false; btn.textContent="💾 Save to OBE Drive"; } }
+}
+/* The export builds the document in a detached container, where Chart.js has nothing to draw into, so the
+   Course Report's CO/PO charts came out blank. Attach the container off-screen just long enough to draw them,
+   then swap each canvas for an <img> of the result (a converter reads markup, not canvas pixels). */
+function embedChartsToImages(host, c){
+  const canvases = Array.from(host.querySelectorAll("canvas"));
+  if(!canvases.length || typeof Chart === "undefined") return;
+  host.style.cssText = "position:fixed;left:-30000px;top:0;width:" + Math.round(190*MM_PX) + "px;visibility:hidden";
+  document.body.appendChild(host);
+  const reg = {};
+  try{
+    drawReportCharts(c, host, reg);
+    canvases.forEach(cv=>{
+      let url = ""; try{ url = cv.toDataURL("image/png"); }catch(e){}
+      if(!url || url === "data:,") { cv.remove(); return; }
+      const img = document.createElement("img");
+      img.src = url; img.alt = "chart";
+      img.setAttribute("style", "width:100%;height:100%;display:block");
+      cv.replaceWith(img);
+    });
+  } finally {
+    Object.values(reg).forEach(ch=>{ try{ ch.destroy(); }catch(e){} });
+    host.remove(); host.style.cssText = "";
+  }
 }
 async function embedSaveAllDocs(){
   for(const key of DOC_KEY) await embedSaveDoc(key);
