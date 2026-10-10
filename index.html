@@ -128,6 +128,11 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .vet-sign{font-size:13px;margin:10px 0 2px}
 .vet-map th{font-size:10px;line-height:1.25;vertical-align:bottom;padding:4px 3px}
 .vet-map td{padding:4px 3px}
+/* Section 7/8 mapping tables have 7-11 columns with long headers: fit the sheet instead of scrolling/clipping */
+.report-sheet .vet-map{table-layout:fixed;width:100%}
+.report-sheet .vet-map th,.report-sheet .vet-map td{overflow-wrap:break-word;word-break:normal}
+.report-sheet .vet-map th{font-size:9px !important}
+.report-sheet .vet-map td{font-size:10.5px !important}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--primary-dark);color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;box-shadow:var(--shadow);opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
 .toast.show{opacity:1}
 /* CQI Section: full-width editable fields (the di/dta helpers are print-styled only inside .report-sheet) */
@@ -7590,7 +7595,7 @@ function vetAssessTable(c, part){
   const vr = esc(role("vetter"));
   const head = `<tr><th rowspan="2" style="width:38px;text-align:center">CO</th><th rowspan="2" style="width:42px;text-align:center">CP*</th>`
     + cols.map(a=>`<th colspan="2" style="text-align:center">${esc(a.name||a.type)}</th>`).join("")
-    + `<th rowspan="2" style="text-align:center">Remarks by the ${vr} 1</th><th rowspan="2" style="text-align:center">Remarks by the ${vr} 2</th></tr>`
+    + `<th rowspan="2" style="text-align:center;width:70px">Remarks by the ${vr} 1</th><th rowspan="2" style="text-align:center;width:70px">Remarks by the ${vr} 2</th></tr>`
     + `<tr>` + cols.map(()=>`<th style="text-align:center;font-size:11px">Question</th><th style="text-align:center;font-size:11px">Level</th>`).join("") + `</tr>`;
   const rows = c.cos.map((co,i)=>{
     const cells = cols.map(a=>{
@@ -7600,7 +7605,7 @@ function vetAssessTable(c, part){
     }).join("");
     return `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${cpCO.has(co.id)?"✓":""}</td>${cells}<td></td><td></td></tr>`;
   }).join("");
-  return `<div class="tbl-wrap"><table class="tbl"><thead>${head}</thead><tbody>${rows||`<tr><td colspan="${4+cols.length*2}" style="text-align:center">No course outcomes defined yet</td></tr>`}</tbody></table></div>`;
+  return `<div class="tbl-wrap" style="overflow:visible"><table class="tbl vet-map"><thead>${head}</thead><tbody>${rows||`<tr><td colspan="${4+cols.length*2}" style="text-align:center">No course outcomes defined yet</td></tr>`}</tbody></table></div>`;
 }
 function docVetCEP(c){
   const v3 = fwV3(c);
@@ -7672,16 +7677,17 @@ function docVetCEP(c){
   <p class="vet-note">* CP indicates the class performance. Check with tick marks (✓) if the CP was assessed for respective COs.</p>
   ${sec(7,"Mapping with the Complex Engineering Problem Solving (CEP) Levels")}
   <p class="vet-note">If there are any higher-order (i.e., Bloom’s Taxonomy Level &gt; 3) assessments in the cognitive domain (analysis, evaluation, and design), please fill out the following table to map them to the relevant CEP level(s). Note that “Complex Engineering Problems have characteristic ${WP}1 and some or all of ${WP}2 to ${WP}7” ${cite}.</p>
-  <div class="tbl-wrap"><table class="tbl vet-map"><thead>
-    <tr><th rowspan="2" style="width:86px">Assessment Type</th><th rowspan="2" style="width:58px;text-align:center">Question #</th>
+  <div class="tbl-wrap" style="overflow:visible"><table class="tbl vet-map"><thead>
+    <tr><th rowspan="2" style="width:110px">Assessment Type</th><th rowspan="2" style="width:120px;text-align:center">Question #</th>
         <th colspan="${VET_DEPTH_KS.length}" style="text-align:center">${WP}1</th>
         ${[2,3,4,5,6,7].map(k=>`<th rowspan="2" style="text-align:center">${WP}${k}<br><span style="font-weight:400">${esc(VET_WP_SHORT[k])}</span></th>`).join("")}</tr>
-    <tr>${VET_DEPTH_KS.map(k=>`<th style="text-align:center">${WK}${k}<br><span style="font-weight:400">${esc(vetKShort(c,k))}</span></th>`).join("")}</tr>
+    <tr>${VET_DEPTH_KS.map(k=>`<th style="text-align:center">${WK}${k}</th>`).join("")}</tr>
   </thead><tbody>${cepRows}</tbody></table></div>
+  <p class="vet-note">${VET_DEPTH_KS.map(k=>`<b>${WK}${k}:</b> ${esc(vetKShort(c,k))}`).join(" &nbsp;·&nbsp; ")}</p>
   ${sec(8,"Mapping with the Complex Engineering Activities (CEA) Levels")}
   <p class="vet-note">If there are any ${commPO} (Communication)-related assessments, please fill out the following table to map them to the relevant CEA level(s). Note that “Complex activities are (engineering) activities or projects that have some or all of the following characteristics” ${citeA}.</p>
-  <div class="tbl-wrap"><table class="tbl vet-map"><thead>
-    <tr><th style="width:86px">Assessment Type</th><th style="width:58px;text-align:center">Question #</th>
+  <div class="tbl-wrap" style="overflow:visible"><table class="tbl vet-map"><thead>
+    <tr><th style="width:110px">Assessment Type</th><th style="width:120px;text-align:center">Question #</th>
         ${[1,2,3,4,5].map(k=>`<th style="text-align:center">${EA}${k}<br><span style="font-weight:400">${esc(VET_EA_SHORT[k])}</span></th>`).join("")}</tr>
   </thead><tbody>${eaRows}</tbody></table></div>
   ${sec(9,"Checklist (To Be Completed by the Instructor and One of the Vetters)")}
