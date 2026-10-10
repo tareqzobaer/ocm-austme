@@ -120,6 +120,14 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .ocm-modal p{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.5}
 .ocm-modal input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit}
 .ocm-modal .btn-row{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.vet-part{font-size:14px;margin:12px 0 8px}
+.vet-sec{font-size:13.5px;margin:14px 0 6px}
+.vet-item{font-size:13px;margin:4px 0}
+.vet-note{font-size:12px;margin:6px 0 8px;line-height:1.5}
+.vet-dots{font-size:12.5px;margin:6px 0;letter-spacing:.5px}
+.vet-sign{font-size:13px;margin:10px 0 2px}
+.vet-map th{font-size:10px;line-height:1.25;vertical-align:bottom;padding:4px 3px}
+.vet-map td{padding:4px 3px}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--primary-dark);color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;box-shadow:var(--shadow);opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
 .toast.show{opacity:1}
 /* CQI Section: full-width editable fields (the di/dta helpers are print-styled only inside .report-sheet) */
@@ -271,7 +279,7 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
     </svg>
     <div>
       <h1>OBE Course Manager</h1>
-      <span class="sub">Teaching, Learning &amp; Assessment — Outcome-Based Education · <span id="verChip">v2.38</span></span>
+      <span class="sub">Teaching, Learning &amp; Assessment — Outcome-Based Education · <span id="verChip">v2.39</span></span>
     </div>
   </div>
   <div class="header-right">
@@ -313,14 +321,14 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
   <section class="tab" id="tab-about"></section>
 </main>
 
-<footer>OBE Course Manager <b>v2.38</b> (<a href="https://mazhar17.github.io/ocm/" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/ocm</a>) · runs fully in your browser · data stays on your device (or your own Google Drive, if you choose) · export backups regularly from <b>Data &amp; Backup</b>
+<footer>OBE Course Manager <b>v2.39</b> (<a href="https://mazhar17.github.io/ocm/" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/ocm</a>) · runs fully in your browser · data stays on your device (or your own Google Drive, if you choose) · export backups regularly from <b>Data &amp; Backup</b>
 <br>© 2026 Prof. Mazharul Islam (<a href="https://mazhar17.github.io/MI" target="_blank" rel="noopener" style="color:var(--primary)">mazhar17.github.io/MI</a>) · Distributed under the <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:var(--primary)">Creative Commons Attribution (CC BY) 4.0 International License</a></footer>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
 /* ============ Constants ============ */
-const APP_VERSION = "v2.38";
+const APP_VERSION = "v2.39";
 const APP_RELEASE = "July 13, 2026";
 const PO_INFO = {
   1:"Engineering Knowledge", 2:"Problem Analysis", 3:"Design/Development of Solutions",
@@ -3442,6 +3450,10 @@ function renderAssess(){
         <select style="padding:7px;border:1px solid var(--border);border-radius:8px;font-family:inherit" onchange="updateAssessment('${a.id}','type',this.value)">
           ${(ASSESS_TYPES.includes(a.type)? ASSESS_TYPES : [a.type, ...ASSESS_TYPES]).map(t=>`<option ${a.type===t?"selected":""}>${t}</option>`).join("")}
         </select>
+        <label style="font-size:12.5px;white-space:nowrap;color:var(--muted)" title="Which half of a jointly taught course this assessment belongs to. It decides whether the assessment appears under Part-A or Part-B of the Final Examination Vetting Form. Leave as &quot;—&quot; for a course taught by one teacher.">Part
+          <select style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit" onchange="updateAssessment('${a.id}','part',this.value)">
+            ${["","A","B"].map(v=>`<option value="${v}" ${(a.part||"")===v?"selected":""}>${v||"—"}</option>`).join("")}
+          </select></label>
         <span class="badge blue">Total: ${total} marks</span>
         ${a.type==="Lab/Sessional"? `<label style="font-size:12.5px;white-space:nowrap;color:var(--muted)" title="Open-ended lab: students design the experiment/procedure themselves instead of following a manual — prime complex-engineering (CEP/CEA) evidence"><input type="checkbox" ${a.oel?"checked":""} onchange="updateAssessment('${a.id}','oel',this.checked)"> Open-ended lab</label>`:""}
         ${rubricTypes().includes(a.type)? `<label style="font-size:12.5px;white-space:nowrap;color:var(--muted)" title="Analytic rubric prepared and shared with students — required for assignments, projects and oral assessments"><input type="checkbox" ${a.rubric?"checked":""} onchange="updateAssessment('${a.id}','rubric',this.checked)"> Rubric prepared</label>`:""}
@@ -3916,6 +3928,10 @@ function cpAssessCard(c, a){
       <select style="padding:7px;border:1px solid var(--border);border-radius:8px;font-family:inherit" onchange="updateAssessment('${a.id}','type',this.value)">
         ${ASSESS_TYPES.map(t=>`<option ${a.type===t?"selected":""}>${t}</option>`).join("")}
       </select>
+      <label style="font-size:12.5px;white-space:nowrap;color:var(--muted)" title="Which half of a jointly taught course this assessment belongs to. It decides whether the assessment appears under Part-A or Part-B of the Final Examination Vetting Form. Leave as &quot;—&quot; for a course taught by one teacher.">Part
+        <select style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit" onchange="updateAssessment('${a.id}','part',this.value)">
+          ${["","A","B"].map(v=>`<option value="${v}" ${(a.part||"")===v?"selected":""}>${v||"—"}</option>`).join("")}
+        </select></label>
       <label style="font-size:13px;white-space:nowrap">Total marks
         <input type="text" inputmode="decimal" value="${esc(cpTotalOf(a))}" style="width:64px;padding:6px;border:1px solid var(--border);border-radius:6px;text-align:center;font-family:inherit" title="The CP total (typically 10) — divided equally among the ticked COs" onchange="setCpTotal('${a.id}',this.value,this)">
       </label>
@@ -7536,65 +7552,172 @@ function docCOMod(c){
   <textarea class="di" rows="3" style="width:100%;overflow-y:hidden;font-size:12.5px" placeholder="Comments from the convener of the committee…" oninput="autoGrowTA(this)" onchange="austSet('comod.comments',this.value)">${esc(m.comments)}</textarea>
   <p style="margin-top:14px">Signature of the ${esc(role("convener"))}: __________________ &nbsp;&nbsp; Date: <span style="display:inline-block;min-width:130px">${di("comod.decisionDate", m.decisionDate, "Date of the decision")}</span><br>Name of the ${esc(role("convener"))}: <span style="display:inline-block;min-width:230px">${di("comod.convener", m.convener, "Name of the convener")}</span></p>`;
 }
-/* ---- Final Exam Vetting Form with CEP/CEA ---- */
-function docVetCEP(c){
-  const dw=attrDef(c,'wp'), de=attrDef(c,'ea');
-  const finals = c.assessments.filter(a=>a.type==="Final Exam");
-  const title = "Final Exam Vetting Form with CEP/CEA";
-  if(!finals.length) return `${docHead(title,"")}<p class="hint">No assessment of type <b>Final Exam</b> is defined yet — add one in the Assessments Section, tag its questions with ${dw.pre}/${de.pre} attributes (Complex attributes per item), and this form fills itself.</p>`;
-  const body = finals.map(a=>{
-    const total = a.items.reduce((s,it)=>s+(parseFloat(it.max)||0),0);
-    const qRows = a.items.map(it=>{
-      const j = c.cos.findIndex(x=>x.id===it.coId);
-      const co = j>=0? c.cos[j] : null;
-      return `<tr>
-        <td style="text-align:center">${esc(it.label)}${it.mandatory===false?"†":""}</td>
-        <td style="text-align:center">${j>=0? "CO"+(j+1):"—"}</td>
-        <td style="text-align:center">${esc(itemLevelTag(it, co)||"—")}</td>
-        <td style="text-align:center">${it.max??""}</td>
-        <td style="text-align:center">${attrStr(c,'wp',it.wp)||"—"}</td>
-        <td style="text-align:center">${attrStr(c,'ea',it.ea)||"—"}</td></tr>`;
+/* ---- Final Examination Vetting Form ----
+   Reproduces the AUST template exactly for a Version 2.2 course: Part 1 sections 1-10,
+   Part 2 Modifications, Part 3 HoD approval. A Version 3 course gets the identical layout with
+   Version 3 terminology — WP/WK/EA for P/K/A, PO9 instead of PO10 for Communication, and the
+   ACC-MAN-02 v3.0 citation. Nothing else differs between the two.
+   The analysis OCM used to print (coverage summary, Bloom spread, the depth-attribute gate) is
+   NOT in the template, so it appears on screen only, marked no-print. */
+const VET_CHECKLIST = [
+  "The format is in accordance with the AUST template",
+  "The Bloom’s Taxonomy levels of all questions are aligned with the course outcomes",
+  "The questions have covered the main topics",
+  "The mark distribution is appropriate",
+  "The grammatical and spelling mistakes have been checked",
+  "The required data, charts, and graphs are included",
+  "The figures/diagrams have appropriate size, clarity, and aspect ratio",
+  "The mapped CEP levels(s) are appropriate",
+  "The mapped CEA levels(s) are appropriate"];
+const VET_WP_SHORT = {2:"Range of Conflicting Requirements",3:"Depth of Analysis Required",4:"Familiarity of Issues",
+  5:"Extent of Applicable Codes",6:"Extent of Stakeholder involvement and Conflicting requirements",7:"Interdependence"};
+const VET_EA_SHORT = {1:"Range of Resources",2:"Level of Interaction",3:"Innovation",
+  4:"Consequences for Society and the Environment",5:"Familiarity"};
+/* The depth attribute (P1 / WP1) is subdivided by the knowledge-profile attributes the manual
+   cites for it. OCM holds no per-question knowledge attribute, so these cells print blank. */
+const VET_DEPTH_KS = [3,4,5,6,8];
+function vetKShort(c,k){ return String(attrDef(c,'wk').tip(k)||"").replace(/\.$/,""); }
+function vetPartOf(a){ const v=String(a.part||"").toUpperCase(); return (v==="A"||v==="B")? v : ""; }
+function vetParts(c){
+  const used=[...new Set(c.assessments.map(vetPartOf).filter(Boolean))].sort();
+  return used.length? used : [""];        /* nothing declared → one unlabelled table */
+}
+/* Template section 6: CO rows against this part's assessments, each with Question and Level. */
+function vetAssessTable(c, part){
+  const mine = a => part? vetPartOf(a)===part : true;
+  const cols = c.assessments.filter(a=>!isCP(a) && mine(a));
+  const cpCO = new Set(); c.assessments.filter(a=>isCP(a) && mine(a)).forEach(a=>(a.cpCOs||[]).forEach(id=>cpCO.add(id)));
+  const vr = esc(role("vetter"));
+  const head = `<tr><th rowspan="2" style="width:38px;text-align:center">CO</th><th rowspan="2" style="width:42px;text-align:center">CP*</th>`
+    + cols.map(a=>`<th colspan="2" style="text-align:center">${esc(a.name||a.type)}</th>`).join("")
+    + `<th rowspan="2" style="text-align:center">Remarks by the ${vr} 1</th><th rowspan="2" style="text-align:center">Remarks by the ${vr} 2</th></tr>`
+    + `<tr>` + cols.map(()=>`<th style="text-align:center;font-size:11px">Question</th><th style="text-align:center;font-size:11px">Level</th>`).join("") + `</tr>`;
+  const rows = c.cos.map((co,i)=>{
+    const cells = cols.map(a=>{
+      const its=a.items.filter(it=>it.coId===co.id);
+      return `<td style="text-align:center;font-size:11.5px">${its.map(it=>esc(it.label)).join("<br>")}</td>`
+           + `<td style="text-align:center;font-size:11.5px">${its.map(it=>esc(itemLevelTag(it,co)||"")).join("<br>")}</td>`;
     }).join("");
-    const coMarks = c.cos.map((co,i)=>{ const m=a.items.filter(it=>it.coId===co.id).reduce((s,it)=>s+(parseFloat(it.max)||0),0); return {i,m}; });
-    const covered = coMarks.filter(x=>x.m>0), missing = coMarks.filter(x=>!x.m);
-    const lvls = {}; a.items.forEach(it=>{ const j=c.cos.findIndex(x=>x.id===it.coId); const t=itemLevelTag(it, j>=0?c.cos[j]:null)||"—"; lvls[t]=(lvls[t]||0)+(parseFloat(it.max)||0); });
-    const wpSet=[...new Set(a.items.flatMap(it=>it.wp||[]))].sort((x,y)=>x-y);
-    const eaSet=[...new Set(a.items.flatMap(it=>it.ea||[]))].sort((x,y)=>x-y);
-    const gate = wpSet.length && !wpSet.includes(1)? `<p style="font-size:12px;color:#8a6d00"><b>⚠ ${dw.pre}1 (Depth of knowledge required) is not tagged on any question.</b> ${dw.pre}1 is the defining characteristic of a complex engineering problem — a paper cannot claim complex-problem coverage without it.</p>` : "";
-    return `
-  <h2>${esc(a.name||a.type)} — Question Analysis <span style="font-weight:400;font-size:13px">(auto-filled from the Assessment Plan)</span></h2>
-  <table class="tbl"><thead><tr><th style="width:70px;text-align:center">Question</th><th style="width:55px;text-align:center">CO</th><th style="width:55px;text-align:center">Level</th><th style="width:55px;text-align:center">Marks</th><th style="text-align:center">CEP attributes (${dw.pre})</th><th style="text-align:center">CEA attributes (${de.pre})</th></tr></thead>
-    <tbody>${qRows || `<tr><td colspan="6" style="text-align:center">No questions defined yet</td></tr>`}</tbody></table>
-  <p style="font-size:11.5px;color:var(--muted)">† = choice question (the student selects from a pool, e.g., answer any 5 of 7). Full marks: <b>${total}</b>. Duration: __________</p>
-  <h2>Coverage Summary</h2>
-  <table class="tbl"><tbody>
-    <tr><th style="width:220px">COs covered</th><td>${covered.map(x=>`CO${x.i+1} (${x.m} marks)`).join(", ")||"—"}</td></tr>
-    <tr><th>COs not assessed in this exam</th><td>${missing.map(x=>"CO"+(x.i+1)).join(", ")||"None"}</td></tr>
-    <tr><th>Bloom-level distribution (marks)</th><td>${Object.keys(lvls).sort().map(k=>`${k}: ${lvls[k]}`).join(" · ")||"—"}</td></tr>
-    <tr><th>CEP attributes exercised</th><td>${wpSet.length? wpSet.map(k=>`<b>${dw.pre}${k}</b> — ${esc(dw.tip(k)||"")}`).join("<br>") : "None tagged"}</td></tr>
-    <tr><th>CEA attributes exercised</th><td>${eaSet.length? eaSet.map(k=>`<b>${de.pre}${k}</b> — ${esc(de.tip(k)||"")}`).join("<br>") : "None tagged"}</td></tr>
-  </tbody></table>
-  ${gate}
-  <h2>Vetting Checklist (To Be Completed by the Vetting Committee)</h2>
-  <table class="tbl"><thead><tr><th>Item</th><th style="width:50px;text-align:center">Yes</th><th style="width:50px;text-align:center">No</th><th style="width:180px">Comments</th></tr></thead><tbody>
-    ${["The questions align with the stated COs and their Bloom's taxonomy levels",
-       "The mark distribution matches the assessment plan and is appropriate",
-       `At least one question addresses complex engineering problem characteristics (${dw.pre}1 together with other ${dw.pre} attributes)`,
-       `The tagged ${dw.pre}/${de.pre} attributes are genuinely exercised by the corresponding questions`,
-       "The language is clear and free from ambiguity, including choice instructions",
-       "The difficulty is balanced across the paper",
-       "The required data/charts/figures are included with appropriate clarity"]
-      .map((x,i)=>`<tr><td>${i+1}. ${x}</td><td style="text-align:center" class="cbx">□</td><td style="text-align:center" class="cbx">□</td><td></td></tr>`).join("")}
-  </tbody></table>
-  <h2>Sign-off</h2>
-  <p style="margin-top:10px">Signature of the Course Teacher: __________________ &nbsp;&nbsp; Date: __________<br>Name: ${esc(c.instructor)}</p>
-  <table class="tbl" style="margin-top:8px"><tr>
-    <td style="width:50%">Signature of the ${esc(role("vetter"))} 1: __________________<br>Date: __________<br>Name: ${di('vet.vetter1', c.aust.vet.vetter1, 'Name of the first '+role("vetter").toLowerCase())}</td>
-    <td style="width:50%">Signature of the ${esc(role("vetter"))} 2: __________________<br>Date: __________<br>Name: ${di('vet.vetter2', c.aust.vet.vetter2, 'Name of the second '+role("vetter").toLowerCase())}</td>
-  </tr></table>
-  <p><br>Signature of the ${esc(role("hod"))}: __________________ &nbsp;&nbsp; Date: __________<br>Name: ______________________________</p>`;
+    return `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${cpCO.has(co.id)?"✓":""}</td>${cells}<td></td><td></td></tr>`;
   }).join("");
-  return `${docHead(title,"Complex Engineering Problem (" + dw.pre + ") and Activity (" + de.pre + ") coverage of the final examination — evidence auto-filled, judgment by the vetting committee")}${body}`;
+  return `<div class="tbl-wrap"><table class="tbl"><thead>${head}</thead><tbody>${rows||`<tr><td colspan="${4+cols.length*2}" style="text-align:center">No course outcomes defined yet</td></tr>`}</tbody></table></div>`;
+}
+function docVetCEP(c){
+  const v3 = fwV3(c);
+  const WP = attrDef(c,'wp').pre, EA = attrDef(c,'ea').pre, WK = attrDef(c,'wk').pre;
+  const vr = esc(role("vetter"));
+  const commPO = v3? "PO9" : "PO10";
+  const cite  = v3? "[BAETE Accreditation Manual, ACC-MAN-02, Version 3.0, Table 6.2]" : "[BAETE Accreditation Manual, Version 2.1, pp. 4–6]";
+  const citeA = v3? "[BAETE Accreditation Manual, ACC-MAN-02, Version 3.0, Table 6.3]" : "[BAETE Accreditation Manual, Version 2.1, p. 4–7]";
+  const sec = (n,t) => `<p class="vet-sec"><b>${n}. ${t}</b></p>`;
+  const dots = n => Array.from({length:n},()=>`<p class="vet-dots">………………………………………………………………….</p>`).join("");
+
+  const coRows = c.cos.map((co,i)=>{
+    const pos = Object.keys(co.po||{}).filter(k=>co.po[k]>0).sort((a,b)=>a-b).join(", ");
+    const d = co.btDomain || "Cognitive";
+    const num = String(primeTag(co)||"").replace(/\D/g,"");
+    return `<tr><td style="text-align:center">${i+1}</td><td style="font-size:11.5px">${esc(co.statement)}</td>
+      <td style="text-align:center">${pos}</td>
+      <td style="text-align:center">${d==="Cognitive"? num:""}</td>
+      <td style="text-align:center">${d==="Affective"? num:""}</td>
+      <td style="text-align:center">${d==="Psychomotor"? num:""}</td></tr>`;
+  }).join("");
+
+  const cepItems=[], eaItems=[];
+  c.assessments.filter(a=>!isCP(a)).forEach(a=>a.items.forEach(it=>{
+    if((it.wp||[]).length) cepItems.push({a,it});
+    if((it.ea||[]).length) eaItems.push({a,it});
+  }));
+  const blank = n => Array.from({length:n},()=>({a:null,it:null}));
+  const cepRows = (cepItems.length? cepItems : blank(7)).map(({a,it})=>
+    `<tr><td style="font-size:11.5px">${a? esc(a.name||a.type):""}</td><td style="text-align:center;font-size:11.5px">${it? esc(it.label):""}</td>`
+    + VET_DEPTH_KS.map(()=>`<td></td>`).join("")
+    + [2,3,4,5,6,7].map(k=>`<td style="text-align:center">${(it && (it.wp||[]).includes(k))? "✓":""}</td>`).join("") + `</tr>`).join("");
+  const eaRows = (eaItems.length? eaItems : blank(7)).map(({a,it})=>
+    `<tr><td style="font-size:11.5px">${a? esc(a.name||a.type):""}</td><td style="text-align:center;font-size:11.5px">${it? esc(it.label):""}</td>`
+    + [1,2,3,4,5].map(k=>`<td style="text-align:center">${(it && (it.ea||[]).includes(k))? "✓":""}</td>`).join("") + `</tr>`).join("");
+
+  const partTables = vetParts(c).map(pt=>`${pt? `<p class="vet-sec">Part-${pt}</p>`:""}${vetAssessTable(c,pt)}`).join("");
+
+  /* on-screen only — not part of the template */
+  const allWP=[...new Set(c.assessments.filter(a=>!isCP(a)).flatMap(a=>a.items.flatMap(it=>it.wp||[])))].sort((x,y)=>x-y);
+  const hi = c.assessments.filter(a=>!isCP(a)).flatMap(a=>a.items.filter(it=>{
+    const j=c.cos.findIndex(x=>x.id===it.coId); return /^C[4-6]$/.test(itemLevelTag(it, j>=0?c.cos[j]:null)||""); }));
+  const screen = `<div class="no-print" style="background:var(--primary-light);border-left:3px solid var(--primary);padding:10px 14px;border-radius:8px;margin:0 0 14px">
+    <p style="margin:0 0 6px;font-size:13px"><b>Before you sign — a check that does not print</b></p>
+    <p style="margin:0;font-size:12.5px;line-height:1.6">
+      ${c.assessments.some(a=>a.type==="Final Exam")? "" : `<span style="color:var(--danger)">No assessment of type <b>Final Exam</b> exists yet, so §6 shows no final column.</span><br>`}
+      Questions carrying ${WP} attributes: <b>${cepItems.length}</b> · carrying ${EA}: <b>${eaItems.length}</b> · higher-order (C4–C6): <b>${hi.length}</b>.<br>
+      ${allWP.length && !allWP.includes(1)? `<span style="color:var(--danger)"><b>⚠ ${WP}1 is tagged on no question.</b> ${WP}1 is the defining characteristic of a complex engineering problem — a paper cannot claim complex-problem coverage without it.</span><br>`:""}
+      ${hi.length && !cepItems.length? `<span style="color:var(--warn)">⚠ There are higher-order questions but none carries a ${WP} attribute, so §7 prints empty.</span><br>`:""}
+      ${!c.assessments.some(a=>vetPartOf(a))? `For a jointly taught course, set <b>Part</b> (A or B) on each assessment in the Assessments Section and §6 prints as Part-A and Part-B.<br>`:""}
+      The <b>${WK}</b> cells beneath <b>${WP}1</b> in §7 print blank by design — OCM holds no knowledge-profile tag per question, so the vetters tick them.
+    </p></div>`;
+
+  const body = `
+  ${screen}
+  <p class="vet-part"><b>Part 1: Moderation</b></p>
+  <p class="vet-item"><b>1. Course Code and Section:</b> ${esc(c.code)}${String(c.section||"").trim()? ` (Section ${esc(c.section)})`:""}</p>
+  <p class="vet-item"><b>2. Course Title:</b> ${esc(c.title)}</p>
+  <p class="vet-item"><b>3. Course Instructor:</b> ${esc(c.instructor)}</p>
+  <p class="vet-item"><b>4. Semester:</b> ${esc(c.semester)}</p>
+  ${sec(5,"Course Outcomes (COs):")}
+  <div class="tbl-wrap"><table class="tbl"><thead>
+    <tr><th rowspan="2" style="width:44px;text-align:center">Sl.<br>No.</th><th rowspan="2">COs</th><th rowspan="2" style="width:50px;text-align:center">POs</th>
+        <th colspan="3" style="text-align:center">Bloom’s<br>Taxonomy</th></tr>
+    <tr><th style="width:34px;text-align:center">C</th><th style="width:34px;text-align:center">A</th><th style="width:34px;text-align:center">P</th></tr>
+  </thead><tbody>${coRows||`<tr><td colspan="6" style="text-align:center">No course outcomes defined yet</td></tr>`}</tbody></table></div>
+  ${sec(6,"Formative and Summative Assessments")}
+  ${partTables}
+  <p class="vet-note">* CP indicates the class performance. Check with tick marks (✓) if the CP was assessed for respective COs.</p>
+  ${sec(7,"Mapping with the Complex Engineering Problem Solving (CEP) Levels")}
+  <p class="vet-note">If there are any higher-order (i.e., Bloom’s Taxonomy Level &gt; 3) assessments in the cognitive domain (analysis, evaluation, and design), please fill out the following table to map them to the relevant CEP level(s). Note that “Complex Engineering Problems have characteristic ${WP}1 and some or all of ${WP}2 to ${WP}7” ${cite}.</p>
+  <div class="tbl-wrap"><table class="tbl vet-map"><thead>
+    <tr><th rowspan="2" style="width:86px">Assessment Type</th><th rowspan="2" style="width:58px;text-align:center">Question #</th>
+        <th colspan="${VET_DEPTH_KS.length}" style="text-align:center">${WP}1</th>
+        ${[2,3,4,5,6,7].map(k=>`<th rowspan="2" style="text-align:center">${WP}${k}<br><span style="font-weight:400">${esc(VET_WP_SHORT[k])}</span></th>`).join("")}</tr>
+    <tr>${VET_DEPTH_KS.map(k=>`<th style="text-align:center">${WK}${k}<br><span style="font-weight:400">${esc(vetKShort(c,k))}</span></th>`).join("")}</tr>
+  </thead><tbody>${cepRows}</tbody></table></div>
+  ${sec(8,"Mapping with the Complex Engineering Activities (CEA) Levels")}
+  <p class="vet-note">If there are any ${commPO} (Communication)-related assessments, please fill out the following table to map them to the relevant CEA level(s). Note that “Complex activities are (engineering) activities or projects that have some or all of the following characteristics” ${citeA}.</p>
+  <div class="tbl-wrap"><table class="tbl vet-map"><thead>
+    <tr><th style="width:86px">Assessment Type</th><th style="width:58px;text-align:center">Question #</th>
+        ${[1,2,3,4,5].map(k=>`<th style="text-align:center">${EA}${k}<br><span style="font-weight:400">${esc(VET_EA_SHORT[k])}</span></th>`).join("")}</tr>
+  </thead><tbody>${eaRows}</tbody></table></div>
+  ${sec(9,"Checklist (To Be Completed by the Instructor and One of the Vetters)")}
+  <table class="tbl"><thead><tr><th>Item</th><th style="width:150px;text-align:center">Instructor / Course Coordinator</th><th style="width:96px;text-align:center">${vr} ___</th></tr></thead>
+  <tbody>${VET_CHECKLIST.map((x,i)=>`<tr><td>${i+1}. ${esc(x)}</td><td style="text-align:center" class="cbx">□</td><td style="text-align:center" class="cbx">□</td></tr>`).join("")}
+    <tr><td>&nbsp;</td><td></td><td></td></tr></tbody></table>
+  <p class="vet-sign">Signature of the Instructor/Course Coordinator: __________________</p>
+  <p class="vet-sign">Date:</p>
+  <p class="vet-sign">Name: ${esc(c.instructor)}</p>
+  ${sec(10,"Verifications (To Be Completed by Both Vetters)")}
+  <table class="tbl"><thead><tr><th></th><th style="width:90px;text-align:center">${vr} 1</th><th style="width:90px;text-align:center">${vr} 2</th></tr></thead><tbody>
+    ${["Recommended without any modifications",
+       "Recommended with some modifications (describe them in the remarks section below)",
+       "Not recommended; the final exam question should be rewritten (state the reasons in the remarks section below)"]
+      .map(x=>`<tr><td>${esc(x)}</td><td style="text-align:center" class="cbx">□</td><td style="text-align:center" class="cbx">□</td></tr>`).join("")}
+  </tbody></table>
+  <p class="vet-sign">Remarks (if any):</p>
+  ${dots(5)}
+  <table class="tbl" style="margin-top:8px"><tr>
+    <td style="width:50%">Signature of the ${vr} 1:<br><br>__________________<br><br>Date:<br><br>Name: ${di('vet.vetter1', c.aust.vet.vetter1, 'Name of the first '+role("vetter").toLowerCase())}</td>
+    <td style="width:50%">Signature of the ${vr} 2:<br><br>__________________<br><br>Date:<br><br>Name: ${di('vet.vetter2', c.aust.vet.vetter2, 'Name of the second '+role("vetter").toLowerCase())}</td>
+  </tr></table>
+  <p class="vet-part" style="margin-top:18px"><b>Part 2: Modifications (if any)</b></p>
+  <table class="tbl"><tbody>
+    <tr><td style="width:34px;text-align:center" class="cbx">□</td><td>All the required modifications have been made.</td></tr>
+    <tr><td style="text-align:center" class="cbx">□</td><td>Some or all of the modifications have not been done due to the following reasons:</td></tr>
+  </tbody></table>
+  ${dots(5)}
+  <p class="vet-sign">Signature of the Instructor/Course Coordinator: __________________</p>
+  <p class="vet-sign">Date:</p>
+  <p class="vet-sign">Name: ${esc(c.instructor)}</p>
+  <p class="vet-part" style="margin-top:18px"><b>Part 3: Approval by the Head of the Department</b></p>
+  <p class="vet-sign">Signature of the ${esc(role("hod"))}: __________________</p>
+  <p class="vet-sign">Date:</p>
+  <p class="vet-sign">Name:</p>`;
+  return `${docHead("FINAL EXAMINATION VETTING FORM","")}${body}`;
 }
 
 /* ---- Document 4: Direct CO-PO Calculations ---- */
