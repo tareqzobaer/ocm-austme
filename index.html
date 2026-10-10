@@ -187,6 +187,10 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .report-sheet .tbl tr,.report-sheet .sig-table tr{page-break-inside:avoid;break-inside:avoid}
 .report-sheet h2,.report-sheet h3{page-break-after:avoid;break-after:avoid}
 .ta-print-mirror{display:none}
+.keep-next{page-break-after:avoid;break-after:avoid}
+.report-sheet.pg-on{box-sizing:content-box;width:190mm;max-width:none;padding:0;margin:0 auto;border:1px solid #cbd5e1}
+.report-sheet.pg-on.pg-land{width:277mm}
+@media print{ .report-sheet.pg-on{width:auto;border:0;margin:0} }
 .pg-toggle{font-size:12.5px;display:inline-flex;align-items:center;gap:5px;margin-left:6px;cursor:pointer}
 .doc-space{display:block}
 .doc-space-ctl{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted);border-top:1px dashed #9ab;margin:2px 0;padding:2px 0}
@@ -6887,6 +6891,7 @@ function regrowAllTA(){
     document.querySelectorAll(".report-sheet textarea").forEach(t=>{
       const m = document.createElement("div");
       m.className = "ta-print-mirror"; m.textContent = t.value;
+      m.style.minHeight = (Math.max(1, t.rows||1) * 1.4) + "em";
       t.insertAdjacentElement("afterend", m);
     });
   });
@@ -6952,7 +6957,11 @@ function renderDocs(){
     <span class="pill-note">Dotted fields are editable and save automatically. Fields already entered elsewhere in the app are filled in for you. The documents follow the AUST OBE templates (BAETE / Washington Accord framework).</span>
   </div>
   <div class="report-sheet">${docs[sel][1](c)}</div>`;
-  applyDocSpace(el.querySelector(".report-sheet"), sel, c, !!ui().pageGuide);
+  const sheetEl = el.querySelector(".report-sheet");
+  markKeepWithNext(sheetEl);
+  sheetEl.classList.toggle("pg-on", !!ui().pageGuide);
+  sheetEl.classList.toggle("pg-land", LANDSCAPE_DOCS.includes(sel));
+  applyDocSpace(sheetEl, sel, c, !!ui().pageGuide);
   autoGrowAll("tab-docs");
   drawPageGuides();
   if(sel==="report") drawReportCharts(c);
@@ -7016,6 +7025,18 @@ function showDoc(d){ window._docSel = d; renderDocs(); }
    block — in the live view, Print, Word export and the PDF saved to OBE Drive alike, so it works even
    where a converter ignores page-break rules. The guides are screen-only (.no-print). */
 const DOC_SPACE_STEP_MM = 10, MM_PX = 96/25.4;
+/* A paragraph that is nothing but one bold title (e.g. "3.3.2 ICT Hardware Resources") must stay on
+   the same page as the table/box that follows it. Marked in JS rather than with :has() so the same
+   class reaches the PDF converter too. */
+function markKeepWithNext(root){
+  if(!root) return;
+  root.querySelectorAll("p").forEach(p=>{
+    const q = p.cloneNode(true);                       // ignore screen-only extras (e.g. the "⛓ linked" badge)
+    q.querySelectorAll(".no-print").forEach(n=>n.remove());
+    const b = q.children.length === 1 && q.children[0].tagName === "B" ? q.children[0] : null;
+    if(b && b.textContent.trim() === q.textContent.trim() && p.nextElementSibling) p.classList.add("keep-next");
+  });
+}
 function togglePageGuide(on){ ui().pageGuide = !!on; save(); renderDocs(); }
 function setGuideScale(v){ const n = Math.min(200, Math.max(50, parseFloat(v)||100)); ui().guideScale = n/100; save(); drawPageGuides(); }
 function docSpaceAdj(key, idx, deltaMm){
@@ -7052,16 +7073,18 @@ function applyDocSpace(host, key, c, interactive){
     }
   });
 }
-/* Dashed lines where an A4 page would end if the sheet's width were the printable width (190 mm
-   portrait / 277 mm landscape) — an estimate, tunable with the "guide page height" box. */
+/* Dashed lines where an A4 page ends (277 mm printable height portrait / 190 mm landscape). With the
+   toggle on, .pg-on lays the sheet out at the printable WIDTH (190 / 277 mm) — text then wraps as it does
+   when printed — so the lines are positions in the real layout, not a scaled guess. Content that a
+   keep-together rule pushes to the next page still moves the real break earlier than its line; the
+   "guide page height" box tunes for converters that differ. */
 function drawPageGuides(){
   document.querySelectorAll(".pg-guide").forEach(g=>g.remove());
   const sheet = document.querySelector("#tab-docs .report-sheet");
   if(!sheet || !ui().pageGuide) return;
   const land = LANDSCAPE_DOCS.includes(window._docSel || "outline");
   const cs = getComputedStyle(sheet);
-  const innerW = sheet.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  const pageH = innerW * (land? 190/277 : 277/190) * (ui().guideScale || 1);
+  const pageH = (land? 190 : 277) * MM_PX * (ui().guideScale || 1);   // printable height of an A4 page with 10 mm margins
   if(!(pageH > 100)) return;
   if(cs.position === "static") sheet.style.position = "relative";
   const padTop = parseFloat(cs.paddingTop) || 0;
@@ -9221,6 +9244,7 @@ async function embedSaveDoc(key){
     embedAnySignatureRendered = false;
     try { host.innerHTML = docsRegistry()[key][1](c); }
     finally { embedExporting = false; }
+    markKeepWithNext(host);
     applyDocSpace(host, key, c, false);
     host.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
     host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
