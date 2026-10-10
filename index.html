@@ -188,10 +188,14 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .report-sheet h2,.report-sheet h3{page-break-after:avoid;break-after:avoid}
 .ta-print-mirror{display:none}
 .keep-next{page-break-after:avoid;break-after:avoid}
+.keep-together{page-break-inside:avoid;break-inside:avoid}
 .report-sheet.pg-on{box-sizing:content-box;width:190mm;max-width:none;padding:0;margin:0 auto;border:1px solid #cbd5e1}
 .report-sheet.pg-on.pg-land{width:277mm}
 @media print{ .report-sheet.pg-on{width:auto;border:0;margin:0} }
-.pg-toggle{font-size:12.5px;display:inline-flex;align-items:center;gap:5px;margin-left:6px;cursor:pointer}
+.btn.secondary.on{background:var(--primary);color:#fff}
+.btn.secondary.on:hover{background:var(--primary-dark)}
+.pg-scale{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);font-weight:600}
+.pg-scale input{width:70px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);background:#fff}
 .doc-space{display:block}
 .doc-space-ctl{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted);border-top:1px dashed #9ab;margin:2px 0;padding:2px 0}
 .doc-space-ctl button{font-size:11px;padding:0 6px;border:1px solid var(--border);background:#fff;border-radius:4px;cursor:pointer}
@@ -6921,9 +6925,9 @@ function docHead(title, sub){
    of the coordinator/head approval workflow, so there's no "final
    approval" gate to wait for; the instructor's own signature is
    self-evident the moment they save. */
-function sigCell(label, signerName){
+function sigCell(label, signerName, width){
   const line = (embedExporting && signerName) ? embedSignatureHtml(signerName, true) : "__________________________";
-  return `<td style="width:31%;text-align:center;vertical-align:bottom"><br><br>${line}<br>${label}</td>`;
+  return `<td style="width:${width||"31%"};text-align:center;vertical-align:bottom"><br><br>${line}<br>${label}</td>`;
 }
 
 function renderDocs(){
@@ -6952,8 +6956,8 @@ function renderDocs(){
     <button class="btn secondary" onclick="exportDocWord()" title="Saves this document as a Word-compatible .doc — opens in Word or LibreOffice with tables and layout intact, fully editable. From Word you can Save As .rtf if that format is required.">⬇ Export for Word (.doc)</button>
     ${IS_EMBED && EMBED_DOC_FOLDERS[sel]? `<button class="btn secondary" id="embedSaveBtn_${sel}" onclick="embedSaveDoc('${sel}')">💾 Save to OBE Drive</button>` : ""}
     ${IS_EMBED && DOC_KEY.includes(sel)? `<button class="btn secondary" onclick="embedSaveAllDocs()">💾 Save all 6 key documents</button>` : ""}
-    <label class="pg-toggle" title="Show approximate page-break lines and add blank space between blocks, so a heading or table does not land awkwardly across pages. Off by default; the guides are never printed or saved."><input type="checkbox" ${ui().pageGuide? "checked":""} onchange="togglePageGuide(this.checked)"> Page layout (guides &amp; whitespace)</label>
-    ${ui().pageGuide? `<label class="pg-toggle" title="If the dashed lines do not match where the saved PDF really breaks, nudge this until they do."> guide page height <input type="number" min="50" max="200" step="1" value="${Math.round((ui().guideScale||1)*100)}" style="width:58px" onchange="setGuideScale(this.value)">%</label>` : ""}
+    <button class="btn secondary ${ui().pageGuide? "on":""}" aria-pressed="${ui().pageGuide? "true":"false"}" onclick="togglePageGuide(${ui().pageGuide? "false":"true"})" title="Show approximate page-break lines and add blank space between blocks, so a heading or table does not land awkwardly across pages. Off by default; the guides are never printed or saved.">📐 Page layout: ${ui().pageGuide? "On":"Off"}</button>
+    ${ui().pageGuide? `<label class="pg-scale" title="If the dashed lines do not match where the saved PDF really breaks, nudge this until they do.">Guide page height <input type="number" min="50" max="200" step="1" value="${Math.round((ui().guideScale||1)*100)}" onchange="setGuideScale(this.value)"> %</label>` : ""}
     <span class="pill-note">Dotted fields are editable and save automatically. Fields already entered elsewhere in the app are filled in for you. The documents follow the AUST OBE templates (BAETE / Washington Accord framework).</span>
   </div>
   <div class="report-sheet">${docs[sel][1](c)}</div>`;
@@ -7034,7 +7038,15 @@ function markKeepWithNext(root){
     const q = p.cloneNode(true);                       // ignore screen-only extras (e.g. the "⛓ linked" badge)
     q.querySelectorAll(".no-print").forEach(n=>n.remove());
     const b = q.children.length === 1 && q.children[0].tagName === "B" ? q.children[0] : null;
-    if(b && b.textContent.trim() === q.textContent.trim() && p.nextElementSibling) p.classList.add("keep-next");
+    if(b && b.textContent.trim() === q.textContent.trim() && p.nextElementSibling){
+      p.classList.add("keep-next");
+      // an empty answer box exported as a zero-height block would otherwise end the chain right after the title
+      for(let n = p.nextElementSibling; n && n.tagName === "DIV" && !n.children.length && !n.textContent.trim(); n = n.nextElementSibling) n.classList.add("keep-next");
+    }
+    if(/Signature/.test(p.textContent) && p.textContent.length < 400) p.classList.add("keep-together");   // never leave a lone "Name:" line on the next page
+    // a title and its answer box in one paragraph (e.g. "6.2 Any Other Modification"): never split them across pages
+    // (keep-next too: once exported, the div closes the <p> early when the saved HTML is re-parsed, leaving the title as its own paragraph)
+    if(p.querySelector('textarea, div[style*="pre-wrap"]') && p.querySelector("b")) p.classList.add("keep-together", "keep-next");
   });
 }
 function togglePageGuide(on){ ui().pageGuide = !!on; save(); renderDocs(); }
@@ -7865,6 +7877,8 @@ function docVetCEP(c){
 /* ---- Document 4: Direct CO-PO Calculations ---- */
 function docCalc(c){
   const att = computeAttainment(c);
+  /* signed by whoever uploads the document (the signed-in instructor), falling back to the course's instructor field */
+  const calcSigner = (embedExporting && embedPreparerName) ? embedPreparerName : c.instructor;
   const coH = att.cos.map(x=>`<th style="text-align:center">${x.label}</th>`).join("");
   const row = (label, arr, key) => `<tr><th>${label}</th>${arr.map(x=>`<td style="text-align:center">${x[key]===null?"—":x[key].toFixed(1)}</td>`).join("")}</tr>`;
   const poH = att.pos.map(x=>`<th style="text-align:center">PO${x.po}</th>`).join("");
@@ -7895,7 +7909,7 @@ function docCalc(c){
     <tr><th>Status (vs Target KPI ${c.cfg.kpiTarget}%)</th>${att.pos.map(x=>`<td style="text-align:center">${x.pct===null?"—":(x.attained?"✓ Attained":"✗ Not attained")}</td>`).join("")}</tr>
   </tbody></table></div>
   <p style="font-size:11.5px;color:var(--muted)">Method: student CO score = % of marks obtained out of the marks assessed under the CO (blank mandatory items count as 0; blank choice questions are excluded — the student is not penalized for legitimately skipping them); student PO score = CO scores weighted by CO allocated marks over the COs the student was assessed on; thresholds are set in Course Info → Attainment Settings.</p>
-  <table class="sig-table"><tr>${sigCell("(Signature)<br>Name of the Instructor: "+esc(c.instructor)+"<br>Date: "+(embedExporting? esc(embedTodayStr()) : "__________"), c.instructor)}<td></td><td></td></tr></table>
+  <table class="sig-table keep-together"><tr>${sigCell("(Signature)<br>Name of the Instructor: "+esc(calcSigner)+"<br>Date: "+(embedExporting? esc(embedTodayStr()) : "__________"), calcSigner, "50%")}<td></td><td></td></tr></table>
   ${fwV3(c)&&computeSDG(c).length? `<h2 style="font-size:14px;margin-top:14px">SDG Attainment <span style="font-weight:400;font-size:11px;color:var(--muted)">(internal diagnostic — mean direct attainment of the COs claiming each goal; BAETE prescribes no SDG threshold)</span></h2>
   <table class="tbl"><thead><tr><th style="width:70px">Goal</th><th>Title</th><th style="width:110px">Claiming CO(s)</th><th style="width:90px">Direct</th><th style="width:110px">Status</th></tr></thead><tbody>${computeSDG(c).map(r=>`<tr><td style="text-align:center"><b>SDG ${r.n}</b></td><td style="font-size:11.5px">${esc(r.name)}</td><td style="text-align:center">${esc(r.cos.join(", "))}</td><td style="text-align:center">${r.pct===null?"—":r.pct.toFixed(1)+"%"}</td><td>${r.pct===null?"—":badgeFor(c,r.pct,r.attained)}</td></tr>`).join("")}</tbody></table>` : ""}
   `;
@@ -9222,7 +9236,7 @@ function embedSignatureHtml(name, shouldShow){
 function embedBuildPdfHtml(key, bodyHtml){
   const land = LANDSCAPE_DOCS.includes(key);
   const noticeHtml = embedAnySignatureRendered
-    ? '<p style="margin:14px 0 0;padding-top:8px;border-top:1px solid #cbd5e1;font-size:10.5px;color:#475569;font-style:italic;page-break-inside:avoid">This is an electronically generated and signed document.</p>'
+    ? '<p style="margin:14px 0 0;padding-top:8px;border-top:1px solid #cbd5e1;font-size:10.5px;color:#475569;font-style:italic;page-break-inside:avoid;break-before:avoid;page-break-before:avoid">This is an electronically generated and signed document.</p>'
     : "";
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(DOC_TITLES[key]||"Document")+'</title><style>'
     + '@page{ size:'+(land? "A4 landscape":"A4 portrait")+'; margin:10mm; }\n'
@@ -9244,12 +9258,12 @@ async function embedSaveDoc(key){
     embedAnySignatureRendered = false;
     try { host.innerHTML = docsRegistry()[key][1](c); }
     finally { embedExporting = false; }
-    markKeepWithNext(host);
     applyDocSpace(host, key, c, false);
     host.querySelectorAll("textarea").forEach(t=>{ const s=document.createElement("div"); s.textContent=t.value||t.textContent||""; s.setAttribute("style","white-space:pre-wrap"); t.replaceWith(s); });
     host.querySelectorAll("input").forEach(i=>{ const s=document.createElement("span"); s.textContent=i.value||""; i.replaceWith(s); });
     host.querySelectorAll("select").forEach(sel2=>{ const s=document.createElement("span"); s.textContent=(sel2.selectedOptions[0]&&sel2.selectedOptions[0].textContent)||""; sel2.replaceWith(s); });
     host.querySelectorAll(".no-print").forEach(n=>n.remove());
+    markKeepWithNext(host);
     await embedInlineImages(host);
     const html = embedBuildPdfHtml(key, host.innerHTML);
     const filename = (c.code||"course")+"_"+(embedSemesterCode||c.semester||"")+"_"+key+".pdf";
