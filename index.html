@@ -127,7 +127,7 @@ footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;te
 .vet-sec,.vet-part,.vet-note{page-break-after:avoid;break-after:avoid}
 .vet-item{font-size:13px;margin:4px 0}
 .vet-note{font-size:12px;margin:6px 0 8px;line-height:1.5}
-.vet-dots{font-size:12.5px;margin:6px 0;letter-spacing:.5px}
+.vet-dots{height:24px;margin:0;border-bottom:1.5px dotted #444}   /* a full-width writing line */
 .vet-sign{font-size:13px;margin:10px 0 2px}
 .vet-map th{font-size:10px;line-height:1.25;vertical-align:bottom;padding:4px 3px}
 .vet-map td{padding:4px 3px}
@@ -7812,7 +7812,7 @@ function docVetCEP(c){
   const cite  = v3? "[BAETE Accreditation Manual, ACC-MAN-02, Version 3.0, Table 6.2]" : "[BAETE Accreditation Manual, Version 2.1, pp. 4–6]";
   const citeA = v3? "[BAETE Accreditation Manual, ACC-MAN-02, Version 3.0, Table 6.3]" : "[BAETE Accreditation Manual, Version 2.1, p. 4–7]";
   const sec = (n,t) => `<p class="vet-sec"><b>${n}. ${t}</b></p>`;
-  const dots = n => Array.from({length:n},()=>`<p class="vet-dots">………………………………………………………………….</p>`).join("");
+  const dots = n => Array.from({length:n},()=>`<p class="vet-dots"></p>`).join("");
 
   const coRows = c.cos.map((co,i)=>{
     const pos = Object.keys(co.po||{}).filter(k=>co.po[k]>0).sort((a,b)=>a-b).join(", ");
@@ -7908,7 +7908,7 @@ function docVetCEP(c){
   </tbody></table></div>
   <div class="vet-block">
   <p class="vet-sign">Remarks (if any):</p>
-  ${dots(5)}
+  ${dots(8)}
   <table class="tbl" style="margin-top:8px"><tr>
     <td style="width:50%">Signature of the ${vr} 1:<br><br>__________________<br><br>Date:<br><br>Name: ${di('vet.vetter1', c.aust.vet.vetter1, 'Name of the first '+role("vetter").toLowerCase())}</td>
     <td style="width:50%">Signature of the ${vr} 2:<br><br>__________________<br><br>Date:<br><br>Name: ${di('vet.vetter2', c.aust.vet.vetter2, 'Name of the second '+role("vetter").toLowerCase())}</td>
